@@ -17,9 +17,6 @@ categories:
   - arcade
   - strategy
 
-# Game URL (for iframe)
-url: ./index.html
-
 # Orientation: portrait, landscape, any
 orientation: landscape
 
@@ -39,25 +36,3 @@ ageRating: 0+
 languages:
   - en
   - ru
-
-# Game features
-features:
-  - no-multiplayer
-  - offline-capable
-
-# Build settings
-build:
-  entry: index.html
-  files:
-    - "**/*"
-    - "!**/.*"
-    - "!**/node_modules/**"
-    - "!**/src/**"
-    - "!**/package*.json"
-    - "!**/vite.config.js"
-
-# API permissions
-api:
-  - player
-  - storage
-  - adv
