@@ -1,0 +1,63 @@
+# Yandex Games Manifest
+# See: https://yandex.ru/dev/games/doc/en/
+
+name: Core Bastion
+description: A casual tower defense game. Build towers to defend your base against waves of enemies!
+
+# Game icon (required: 512x512 PNG)
+icon: ./icons/icon-512.png
+
+# Screenshots (required: at least 2, recommended 1280x720)
+screenshots:
+  - ./screenshots/screenshot1.png
+  - ./screenshots/screenshot2.png
+
+# Categories
+categories:
+  - arcade
+  - strategy
+
+# Game URL (for iframe)
+url: ./index.html
+
+# Orientation: portrait, landscape, any
+orientation: landscape
+
+# Platforms
+platforms:
+  - desktop
+  - mobile
+  - tablet
+
+# Player interaction type
+playerInteraction: single
+
+# Age rating
+ageRating: 0+
+
+# Available languages
+languages:
+  - en
+  - ru
+
+# Game features
+features:
+  - no-multiplayer
+  - offline-capable
+
+# Build settings
+build:
+  entry: index.html
+  files:
+    - "**/*"
+    - "!**/.*"
+    - "!**/node_modules/**"
+    - "!**/src/**"
+    - "!**/package*.json"
+    - "!**/vite.config.js"
+
+# API permissions
+api:
+  - player
+  - storage
+  - adv
