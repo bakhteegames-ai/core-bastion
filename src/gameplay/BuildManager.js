@@ -5,6 +5,7 @@ import { TOWER_COST, TOWER_RANGE } from '../data/balance.js';
  * BuildManager
  * Handles tower placement on build slots.
  * Task 2.3: Tower Build Placement
+ * Task 5.1: Visual Polish Pass
  */
 export class BuildManager {
   constructor(app, economyService, sceneFactory) {
@@ -44,7 +45,7 @@ export class BuildManager {
     const slotData = slotEntity.slotData;
     const position = {
       x: slotData.x,
-      y: 0.75, // Tower height offset
+      y: 0, // Base at ground level
       z: slotData.z
     };
 
@@ -54,11 +55,11 @@ export class BuildManager {
     // Mark slot as occupied
     this.sceneFactory.setSlotOccupied(slotId);
 
-    // Track tower
+    // Track tower - use actual position with height offset
     const towerData = {
       slotId: slotId,
       entity: tower,
-      position: position
+      position: { x: position.x, y: 1.2, z: position.z } // Firing position at top
     };
     this.towers.push(towerData);
 
@@ -71,25 +72,60 @@ export class BuildManager {
    */
   _createTowerEntity(slotId, position) {
     const tower = new pc.Entity(`Tower_${slotId}`);
+    tower.setLocalPosition(position.x, 0, position.z);
 
-    // Base of tower
-    tower.addComponent('render', {
-      type: 'cylinder'
-    });
+    // Tower base - wider at bottom
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.25, 0);
+    base.setLocalScale(1.0, 0.5, 1.0);
 
-    tower.setLocalPosition(position.x, position.y, position.z);
-    tower.setLocalScale(0.8, 1.0, 0.8);
+    const baseMaterial = new pc.StandardMaterial();
+    baseMaterial.diffuse = new pc.Color(0.5, 0.55, 0.6);
+    baseMaterial.specular = new pc.Color(0.3, 0.3, 0.35);
+    baseMaterial.shininess = 20;
+    baseMaterial.update();
+    base.render.material = baseMaterial;
 
-    // Ivory-metal / pale steel / cyan glow (per §7.4)
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.85, 0.85, 0.9);
-    material.emissive = new pc.Color(0.2, 0.3, 0.4);
-    material.update();
-    tower.render.material = material;
+    tower.addChild(base);
+
+    // Tower middle section
+    const middle = new pc.Entity(`TowerMiddle_${slotId}`);
+    middle.addComponent('render', { type: 'cylinder' });
+    middle.setLocalPosition(0, 0.9, 0);
+    middle.setLocalScale(0.7, 0.9, 0.7);
+
+    const middleMaterial = new pc.StandardMaterial();
+    middleMaterial.diffuse = new pc.Color(0.75, 0.8, 0.85);
+    middleMaterial.emissive = new pc.Color(0.15, 0.25, 0.35);
+    middleMaterial.specular = new pc.Color(0.4, 0.4, 0.45);
+    middleMaterial.shininess = 40;
+    middleMaterial.update();
+    middle.render.material = middleMaterial;
+
+    tower.addChild(middle);
+
+    // Tower top / turret
+    const top = new pc.Entity(`TowerTop_${slotId}`);
+    top.addComponent('render', { type: 'cone' });
+    top.setLocalPosition(0, 1.6, 0);
+    top.setLocalScale(0.5, 0.6, 0.5);
+    top.setLocalEulerAngles(180, 0, 0); // Point up
+
+    const topMaterial = new pc.StandardMaterial();
+    topMaterial.diffuse = new pc.Color(0.4, 0.85, 0.95);
+    topMaterial.emissive = new pc.Color(0.2, 0.5, 0.6);
+    topMaterial.specular = new pc.Color(0.5, 0.5, 0.5);
+    topMaterial.shininess = 60;
+    topMaterial.update();
+    top.render.material = topMaterial;
+
+    tower.addChild(top);
+    tower.turret = top;
 
     this.app.root.addChild(tower);
 
-    // Create range indicator (visual only, for now)
+    // Create range indicator
     this._createRangeIndicator(tower, position);
 
     return tower;
@@ -99,19 +135,17 @@ export class BuildManager {
    * Create a visual range indicator for the tower.
    */
   _createRangeIndicator(tower, position) {
-    // Simple ring to show range
+    // Ring to show range
     const ring = new pc.Entity(`TowerRange_${tower.name}`);
-    ring.addComponent('render', {
-      type: 'cylinder'
-    });
-
+    ring.addComponent('render', { type: 'torus' });
     ring.setLocalPosition(position.x, 0.05, position.z);
-    ring.setLocalScale(TOWER_RANGE * 2, 0.02, TOWER_RANGE * 2);
+    ring.setLocalScale(TOWER_RANGE * 2, TOWER_RANGE * 2, 0.3);
+    ring.setLocalEulerAngles(90, 0, 0);
 
-    // Semi-transparent range indicator
     const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.3, 0.6, 0.7);
-    material.opacity = 0.2;
+    material.diffuse = new pc.Color(0.3, 0.7, 0.8);
+    material.emissive = new pc.Color(0.1, 0.35, 0.4);
+    material.opacity = 0.5;
     material.update();
     ring.render.material = material;
 

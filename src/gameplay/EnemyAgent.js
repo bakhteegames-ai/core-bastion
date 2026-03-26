@@ -12,6 +12,7 @@ import {
  * Moves along the fixed waypoint path.
  * Task 1.5: Enemy Path Movement
  * Task 2.6: Enemy death and kill reward
+ * Task 5.1: Visual Polish Pass
  */
 export class EnemyAgent {
   constructor(app, options = {}) {
@@ -40,25 +41,64 @@ export class EnemyAgent {
 
   _createEntity() {
     this.entity = new pc.Entity('Enemy');
+    this.entity.setLocalPosition(this._waypoints[0].x, 0, this._waypoints[0].z);
 
-    this.entity.addComponent('render', {
-      type: 'capsule'
-    });
+    // Enemy body - angular, aggressive looking
+    const body = new pc.Entity('EnemyBody');
+    body.addComponent('render', { type: 'box' });
+    body.setLocalPosition(0, 0.5, 0);
+    body.setLocalScale(0.7, 0.8, 0.7);
+    body.setLocalEulerAngles(0, 45, 0); // Diamond shape
 
-    // Position at first waypoint (spawn point)
-    const spawn = this._waypoints[0];
-    this.entity.setLocalPosition(spawn.x, 0.5, spawn.z);
-    this.entity.setLocalScale(0.6, 0.5, 0.6);
+    // Warm hostile color (per §7.4) with HP-based intensity
+    const intensity = Math.min(1, this._maxHP / 50); // Brighter for stronger enemies
+    const bodyMaterial = new pc.StandardMaterial();
+    bodyMaterial.diffuse = new pc.Color(
+      0.9 + intensity * 0.1,
+      0.3 + (1 - intensity) * 0.2,
+      0.2
+    );
+    bodyMaterial.emissive = new pc.Color(0.5, 0.15, 0.05);
+    bodyMaterial.specular = new pc.Color(0.3, 0.2, 0.2);
+    bodyMaterial.shininess = 10;
+    bodyMaterial.update();
+    body.render.material = bodyMaterial;
 
-    // Warm hostile color (per §7.4)
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(1.0, 0.4, 0.3); // Ember-orange
-    material.update();
-    this.entity.render.material = material;
+    this.entity.addChild(body);
+    this.bodyEntity = body;
+
+    // Enemy head/eye
+    const head = new pc.Entity('EnemyHead');
+    head.addComponent('render', { type: 'sphere' });
+    head.setLocalPosition(0, 1.0, 0);
+    head.setLocalScale(0.3, 0.3, 0.3);
+
+    const headMaterial = new pc.StandardMaterial();
+    headMaterial.diffuse = new pc.Color(1.0, 0.8, 0.2);
+    headMaterial.emissive = new pc.Color(0.6, 0.4, 0.0);
+    headMaterial.update();
+    head.render.material = headMaterial;
+
+    this.entity.addChild(head);
+    this.headEntity = head;
+
+    // Ground shadow
+    const shadow = new pc.Entity('EnemyShadow');
+    shadow.addComponent('render', { type: 'plane' });
+    shadow.setLocalPosition(0, 0.02, 0);
+    shadow.setLocalScale(1.0, 1, 1.0);
+
+    const shadowMaterial = new pc.StandardMaterial();
+    shadowMaterial.diffuse = new pc.Color(0.1, 0.08, 0.08);
+    shadowMaterial.opacity = 0.4;
+    shadowMaterial.update();
+    shadow.render.material = shadowMaterial;
+
+    this.entity.addChild(shadow);
 
     this.app.root.addChild(this.entity);
 
-    console.log(`[EnemyAgent] Spawned at (${spawn.x}, ${spawn.z})`);
+    console.log(`[EnemyAgent] Spawned at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
   }
 
   /**
@@ -81,7 +121,7 @@ export class EnemyAgent {
   get position() {
     if (!this.entity) return null;
     const pos = this.entity.getLocalPosition();
-    return { x: pos.x, y: pos.y, z: pos.z };
+    return { x: pos.x, y: pos.y + 0.5, z: pos.z }; // Offset for body center
   }
 
   /**
@@ -158,7 +198,13 @@ export class EnemyAgent {
     const newX = currentPos.x + dx * ratio;
     const newZ = currentPos.z + dz * ratio;
 
-    this.entity.setLocalPosition(newX, 0.5, newZ);
+    this.entity.setLocalPosition(newX, 0, newZ);
+
+    // Rotate body to face movement direction
+    if (this.bodyEntity) {
+      const angle = Math.atan2(dx, dz) * (180 / Math.PI);
+      this.bodyEntity.setLocalEulerAngles(0, angle + 45, 0);
+    }
   }
 
   /**
