@@ -3,13 +3,15 @@ import { WAYPOINTS } from '../data/level.js';
 import {
   ENEMY_BASE_HP,
   ENEMY_BASE_SPEED,
-  ENEMY_COLLISION_RADIUS
+  ENEMY_COLLISION_RADIUS,
+  ENEMY_GOLD_REWARD
 } from '../data/balance.js';
 
 /**
  * EnemyAgent
  * Moves along the fixed waypoint path.
  * Task 1.5: Enemy Path Movement
+ * Task 2.6: Enemy death and kill reward
  */
 export class EnemyAgent {
   constructor(app, options = {}) {
@@ -21,6 +23,7 @@ export class EnemyAgent {
     this._maxHP = options.hp ?? ENEMY_BASE_HP;
     this._speed = options.speed ?? ENEMY_BASE_SPEED;
     this._collisionRadius = ENEMY_COLLISION_RADIUS;
+    this._goldReward = options.goldReward ?? ENEMY_GOLD_REWARD;
 
     // Path state
     this._waypoints = WAYPOINTS;
@@ -29,6 +32,7 @@ export class EnemyAgent {
 
     // Callbacks
     this._onReachEndpointCallback = null;
+    this._onDeathCallback = null;
 
     // Create visual entity
     this._createEntity();
@@ -103,6 +107,21 @@ export class EnemyAgent {
   }
 
   /**
+   * Set callback for when enemy dies (killed by tower).
+   * @param {Function} callback
+   */
+  setOnDeath(callback) {
+    this._onDeathCallback = callback;
+  }
+
+  /**
+   * Get gold reward for killing this enemy.
+   */
+  get goldReward() {
+    return this._goldReward;
+  }
+
+  /**
    * Update enemy movement.
    * Call this from the game loop.
    * @param {number} dt - Delta time in seconds
@@ -161,9 +180,14 @@ export class EnemyAgent {
    * @param {number} amount
    */
   takeDamage(amount) {
+    if (!this._isActive) return;
+
     this._hp -= amount;
+    console.log(`[EnemyAgent] Took ${amount} damage, HP: ${this._hp}/${this._maxHP}`);
+
     if (this._hp <= 0) {
       this._hp = 0;
+      this._die();
     }
   }
 
@@ -172,6 +196,23 @@ export class EnemyAgent {
    */
   isDead() {
     return this._hp <= 0;
+  }
+
+  /**
+   * Handle enemy death (killed by tower).
+   */
+  _die() {
+    if (!this._isActive) return;
+
+    console.log('[EnemyAgent] Died');
+
+    // Call death callback (for gold reward)
+    if (this._onDeathCallback) {
+      this._onDeathCallback(this);
+    }
+
+    this._isActive = false;
+    this.destroy();
   }
 
   /**

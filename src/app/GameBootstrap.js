@@ -117,6 +117,9 @@ export class GameBootstrap {
     this.testEnemy.setOnReachEndpoint((enemy) => {
       this._onEnemyLeak(enemy);
     });
+    this.testEnemy.setOnDeath((enemy) => {
+      this._onEnemyDeath(enemy);
+    });
     this.enemies.push(this.testEnemy);
   }
 
@@ -127,6 +130,24 @@ export class GameBootstrap {
     if (index !== -1) {
       this.enemies.splice(index, 1);
     }
+    this.testEnemy = null;
+  }
+
+  /**
+   * Handle enemy death (killed by tower).
+   * Task 2.6: Grant gold reward on kill.
+   */
+  _onEnemyDeath(enemy) {
+    const reward = enemy.goldReward;
+    console.log(`[GameBootstrap] Enemy killed, granting ${reward} gold`);
+    this.economyService.addGold(reward);
+
+    // Remove from enemies array
+    const index = this.enemies.indexOf(enemy);
+    if (index !== -1) {
+      this.enemies.splice(index, 1);
+    }
+
     this.testEnemy = null;
   }
 
