@@ -8,12 +8,12 @@ import { TowerController } from '../gameplay/TowerController.js';
 import { ProjectileController } from '../gameplay/ProjectileController.js';
 import { WaveManager } from '../gameplay/WaveManager.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
+import { STARTING_GOLD, BUILD_PHASE_DURATION } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
-import { STARTING_GOLD } from './constants.js';
 
 /**
  * GameBootstrap
- * Task 3.1: Wave Manager Baseline
+ * Task 3.2: Build Phase Flow
  */
 export class GameBootstrap {
   constructor() {
@@ -28,6 +28,9 @@ export class GameBootstrap {
     this.projectileController = null;
     this.waveManager = null;
     this.stateMachine = null;
+
+    // Build phase timing
+    this.buildPhaseTimer = 0;
   }
 
   init() {
@@ -45,23 +48,33 @@ export class GameBootstrap {
     this.app.setCanvasFillMode(pc.FILLMODE_KEEP_ASPECT);
     this.app.setCanvasResolution(pc.RESOLUTION_AUTO, 1280, 720);
 
+    // Initialize state machine (starts in BOOT)
     this.stateMachine = new GameStateMachine();
-    this.stateMachine.initialize();
+    this.stateMachine.initialize(); // BOOT state
 
+    // Transition BOOT -> READY
+    this.stateMachine.transition(GameState.READY);
+
+    // Initialize economy
     this.economyService = new EconomyService(STARTING_GOLD);
 
+    // Initialize base health
     this.baseHealth = new BaseHealth();
     this.baseHealth.setOnDefeatCallback(() => {
       this._onDefeat();
     });
 
+    // Create battlefield scene
     this.sceneFactory = new SceneFactory(this.app);
     this.sceneFactory.createBattlefield();
 
+    // Initialize build manager
     this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory);
 
+    // Initialize projectile controller
     this.projectileController = new ProjectileController(this.app);
 
+    // Initialize tower controller
     this.towerController = new TowerController(this.app, this.projectileController);
 
     // Initialize wave manager
@@ -73,16 +86,36 @@ export class GameBootstrap {
       this._onWaveComplete(waveNumber);
     });
 
+    // Setup input
     this._setupBuildSlotClickDetection();
 
+    // Start game loop
     this.app.on('update', this.onUpdate, this);
     this.app.start();
 
-    // Start wave 1
-    this.waveManager.startNextWave();
+    // Start first build phase (READY -> BUILD_PHASE)
+    this._startBuildPhase();
 
-    console.log('GameBootstrap initialized - battlefield visible');
+    console.log('GameBootstrap initialized');
     console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
+  }
+
+  /**
+   * Start build phase (before first wave or between waves).
+   */
+  _startBuildPhase() {
+    this.stateMachine.transition(GameState.BUILD_PHASE);
+    this.buildPhaseTimer = BUILD_PHASE_DURATION;
+    console.log(`[GameBootstrap] BUILD_PHASE started (${BUILD_PHASE_DURATION}s)`);
+  }
+
+  /**
+   * Start wave active phase.
+   */
+  _startWaveActive() {
+    this.stateMachine.transition(GameState.WAVE_ACTIVE);
+    this.waveManager.startNextWave();
+    console.log('[GameBootstrap] WAVE_ACTIVE started');
   }
 
   _setupBuildSlotClickDetection() {
@@ -99,6 +132,12 @@ export class GameBootstrap {
   }
 
   _handleBuildSlotClick(event) {
+    // Only allow building during BUILD_PHASE (per §16.2)
+    if (!this.stateMachine.isInState(GameState.BUILD_PHASE)) {
+      console.log('[GameBootstrap] Can only build during BUILD_PHASE');
+      return;
+    }
+
     const camera = this.sceneFactory.getCamera();
     if (!camera) return;
 
@@ -108,6 +147,7 @@ export class GameBootstrap {
     const from = camera.camera.screenToWorld(x, y, camera.camera.nearClip);
     const to = camera.camera.screenToWorld(x, y, camera.camera.farClip);
 
+    // Raycast to find build slots
     const results = this.app.systems.rigidbody.raycastFirst(from, to);
 
     if (results && results.entity && results.entity.slotId) {
@@ -173,12 +213,8 @@ export class GameBootstrap {
 
   _onWaveComplete(waveNumber) {
     console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
-    // Auto-start next wave for testing (Task 3.2 will add build phase)
-    setTimeout(() => {
-      if (!this.stateMachine.isInState(GameState.DEFEAT)) {
-        this.waveManager.startNextWave();
-      }
-    }, 1000);
+    // Transition back to BUILD_PHASE for next wave
+    this._startBuildPhase();
   }
 
   _onDefeat() {
@@ -187,24 +223,37 @@ export class GameBootstrap {
   }
 
   onUpdate(dt) {
+    // No updates during DEFEAT
     if (this.stateMachine.isInState(GameState.DEFEAT)) {
       return;
     }
 
-    // Update wave manager (spawning)
-    this.waveManager.update(dt);
-
-    // Update all enemies
-    for (const enemy of this.enemies) {
-      if (enemy.isActive) {
-        enemy.update(dt);
+    // BUILD_PHASE: countdown timer
+    if (this.stateMachine.isInState(GameState.BUILD_PHASE)) {
+      this.buildPhaseTimer -= dt;
+      if (this.buildPhaseTimer <= 0) {
+        this._startWaveActive();
       }
+      return; // No other updates during build phase (per §16.2)
     }
 
-    // Update towers
-    this.towerController.update(this.enemies, dt);
+    // WAVE_ACTIVE: update game systems
+    if (this.stateMachine.isInState(GameState.WAVE_ACTIVE)) {
+      // Update wave manager (spawning)
+      this.waveManager.update(dt);
 
-    // Update projectiles
-    this.projectileController.update(dt);
+      // Update all enemies
+      for (const enemy of this.enemies) {
+        if (enemy.isActive) {
+          enemy.update(dt);
+        }
+      }
+
+      // Update towers
+      this.towerController.update(this.enemies, dt);
+
+      // Update projectiles
+      this.projectileController.update(dt);
+    }
   }
 }
