@@ -2,8 +2,11 @@ import * as pc from 'playcanvas';
 import { SceneFactory } from '../scene/SceneFactory.js';
 import { EnemyAgent } from '../gameplay/EnemyAgent.js';
 import { BaseHealth } from '../gameplay/BaseHealth.js';
+import { EconomyService } from '../gameplay/EconomyService.js';
+import { BuildManager } from '../gameplay/BuildManager.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
+import { STARTING_GOLD } from './constants.js';
 
 /**
  * GameBootstrap
@@ -13,6 +16,7 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
  * Task 1.5: Test enemy movement along waypoints.
  * Task 1.6: Leak damage integration with base health.
  * Task 2.2: Build slot click detection.
+ * Task 2.3: Tower build placement.
  */
 export class GameBootstrap {
   constructor() {
@@ -21,8 +25,9 @@ export class GameBootstrap {
     this.sceneFactory = null;
     this.testEnemy = null;
     this.baseHealth = null;
+    this.economyService = null;
+    this.buildManager = null;
     this.stateMachine = null;
-    this._buildAttemptCallback = null;
   }
 
   init() {
@@ -48,6 +53,9 @@ export class GameBootstrap {
     this.stateMachine = new GameStateMachine();
     this.stateMachine.initialize();
 
+    // Initialize economy service
+    this.economyService = new EconomyService(STARTING_GOLD);
+
     // Initialize base health
     this.baseHealth = new BaseHealth();
     this.baseHealth.setOnDefeatCallback(() => {
@@ -57,6 +65,9 @@ export class GameBootstrap {
     // Create battlefield scene
     this.sceneFactory = new SceneFactory(this.app);
     this.sceneFactory.createBattlefield();
+
+    // Initialize build manager
+    this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory);
 
     // Setup build slot click detection
     this._setupBuildSlotClickDetection();
@@ -71,11 +82,11 @@ export class GameBootstrap {
     this._spawnTestEnemy();
 
     console.log('GameBootstrap initialized - battlefield visible');
+    console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
   }
 
   /**
    * Setup click detection on build slots.
-   * Task 2.2: Build slot interaction.
    */
   _setupBuildSlotClickDetection() {
     // Mouse click handler
@@ -96,9 +107,6 @@ export class GameBootstrap {
    * Handle click on build slots.
    */
   _handleBuildSlotClick(event) {
-    // Only process clicks during BUILD_PHASE (not implemented yet)
-    // For now, allow clicks for testing
-
     const camera = this.sceneFactory.getCamera();
     if (!camera) return;
 
@@ -128,24 +136,8 @@ export class GameBootstrap {
   _onBuildSlotClicked(slotId, entity) {
     console.log(`[GameBootstrap] Build slot ${slotId} clicked`);
 
-    // Check if slot is occupied
-    if (this.sceneFactory.isSlotOccupied(slotId)) {
-      console.log(`[GameBootstrap] Slot ${slotId} is already occupied`);
-      return;
-    }
-
-    // Trigger build attempt callback if set
-    if (this._buildAttemptCallback) {
-      this._buildAttemptCallback(slotId, entity);
-    }
-  }
-
-  /**
-   * Set callback for build attempts.
-   * @param {Function} callback - Function(slotId, entity)
-   */
-  setBuildAttemptCallback(callback) {
-    this._buildAttemptCallback = callback;
+    // Attempt to build a tower
+    this.buildManager.buildTower(slotId, entity);
   }
 
   /**
