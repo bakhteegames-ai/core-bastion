@@ -221,9 +221,9 @@ export class GameBootstrap {
     const camera = this.sceneFactory.getCamera();
     if (!camera) return;
 
-    // Use raw PlayCanvas screen coordinates (pixels) for screenToWorld
-    const x = event.x;
-    const y = event.y;
+    // Normalize coordinates: mouse events use x/y, touch events use clientX/clientY
+    const x = event.x ?? event.clientX;
+    const y = event.y ?? event.clientY;
 
     // Get ray from camera through click point
     const from = camera.camera.screenToWorld(x, y, camera.camera.nearClip);
