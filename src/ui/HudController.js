@@ -1,7 +1,7 @@
 /**
  * HudController
  * Manages HUD display elements.
- * Task 3.3: HUD Core
+ * Task 3.4: Save High Wave
  */
 export class HudController {
   constructor() {
@@ -11,6 +11,7 @@ export class HudController {
     this._goldValue = document.getElementById('hud-gold-value');
     this._timerContainer = document.getElementById('hud-timer');
     this._timerValue = document.getElementById('hud-timer-value');
+    this._highWaveValue = document.getElementById('hud-highwave-value');
 
     // Initial state
     this._currentWave = 0;
@@ -18,6 +19,7 @@ export class HudController {
     this._maxHP = 10;
     this._currentGold = 100;
     this._timerVisible = false;
+    this._highWave = 0;
 
     console.log('[HudController] Initialized');
   }
@@ -95,5 +97,23 @@ export class HudController {
    */
   get gold() {
     return this._currentGold;
+  }
+
+  /**
+   * Update the displayed high wave.
+   * @param {number} wave - Highest wave reached
+   */
+  setHighWave(wave) {
+    this._highWave = wave;
+    if (this._highWaveValue) {
+      this._highWaveValue.textContent = wave;
+    }
+  }
+
+  /**
+   * Get high wave.
+   */
+  get highWave() {
+    return this._highWave;
   }
 }

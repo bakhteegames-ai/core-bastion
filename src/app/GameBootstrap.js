@@ -8,13 +8,14 @@ import { TowerController } from '../gameplay/TowerController.js';
 import { ProjectileController } from '../gameplay/ProjectileController.js';
 import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
+import { SaveService } from '../save/SaveService.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 
 /**
  * GameBootstrap
- * Task 3.3: HUD Core
+ * Task 3.4: Save High Wave
  */
 export class GameBootstrap {
   constructor() {
@@ -30,6 +31,7 @@ export class GameBootstrap {
     this.waveManager = null;
     this.stateMachine = null;
     this.hudController = null;
+    this.saveService = null;
 
     // Build phase timing
     this.buildPhaseTimer = 0;
@@ -93,6 +95,11 @@ export class GameBootstrap {
 
     // Initialize HUD controller
     this.hudController = new HudController();
+
+    // Initialize save service
+    this.saveService = new SaveService();
+    this.hudController.setHighWave(this.saveService.highWave);
+
     this._updateHud();
 
     // Setup input
@@ -232,6 +239,10 @@ export class GameBootstrap {
 
   _onWaveComplete(waveNumber) {
     console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
+    // Update high wave
+    if (this.saveService.updateHighWave(waveNumber)) {
+      this.hudController.setHighWave(this.saveService.highWave);
+    }
     // Transition back to BUILD_PHASE for next wave
     this._startBuildPhase();
   }

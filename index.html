@@ -65,6 +65,19 @@
     .hud-wave .hud-value {
       color: #4ecdc4;
     }
+    .hud-highwave .hud-value {
+      color: #9b59b6;
+      font-size: 14px;
+    }
+    .hud-wave-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hud-wave-panel .hud-sub {
+      font-size: 12px;
+      color: #888;
+    }
     .hud-timer {
       position: absolute;
       top: 50%;
@@ -87,9 +100,12 @@
   <canvas id="application-canvas"></canvas>
   <div id="hud">
     <div class="hud-top">
-      <div class="hud-panel hud-wave">
-        <div class="hud-label">Wave</div>
-        <div class="hud-value" id="hud-wave-value">1</div>
+      <div class="hud-panel hud-wave hud-wave-panel">
+        <div>
+          <div class="hud-label">Wave</div>
+          <div class="hud-value" id="hud-wave-value">1</div>
+        </div>
+        <div class="hud-sub">Best: <span id="hud-highwave-value">0</span></div>
       </div>
       <div class="hud-panel hud-hp">
         <div class="hud-label">Base HP</div>
