@@ -1,7 +1,7 @@
 /**
  * HudController
  * Manages HUD display elements.
- * Task 3.4: Save High Wave
+ * Task 3.5: Defeat Screen
  */
 export class HudController {
   constructor() {
@@ -13,6 +13,12 @@ export class HudController {
     this._timerValue = document.getElementById('hud-timer-value');
     this._highWaveValue = document.getElementById('hud-highwave-value');
 
+    // Defeat screen elements
+    this._defeatScreen = document.getElementById('defeat-screen');
+    this._defeatWaveValue = document.getElementById('defeat-wave-value');
+    this._defeatBestValue = document.getElementById('defeat-best-value');
+    this._restartBtn = document.getElementById('defeat-restart-btn');
+
     // Initial state
     this._currentWave = 0;
     this._currentHP = 10;
@@ -20,6 +26,16 @@ export class HudController {
     this._currentGold = 100;
     this._timerVisible = false;
     this._highWave = 0;
+    this._onRestartCallback = null;
+
+    // Setup restart button
+    if (this._restartBtn) {
+      this._restartBtn.addEventListener('click', () => {
+        if (this._onRestartCallback) {
+          this._onRestartCallback();
+        }
+      });
+    }
 
     console.log('[HudController] Initialized');
   }
@@ -115,5 +131,39 @@ export class HudController {
    */
   get highWave() {
     return this._highWave;
+  }
+
+  /**
+   * Show the defeat screen.
+   * @param {number} wave - Current wave when defeated
+   * @param {number} bestWave - Best wave achieved
+   */
+  showDefeat(wave, bestWave) {
+    if (this._defeatWaveValue) {
+      this._defeatWaveValue.textContent = wave;
+    }
+    if (this._defeatBestValue) {
+      this._defeatBestValue.textContent = bestWave;
+    }
+    if (this._defeatScreen) {
+      this._defeatScreen.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Hide the defeat screen.
+   */
+  hideDefeat() {
+    if (this._defeatScreen) {
+      this._defeatScreen.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Set callback for restart button.
+   * @param {Function} callback
+   */
+  setOnRestart(callback) {
+    this._onRestartCallback = callback;
   }
 }

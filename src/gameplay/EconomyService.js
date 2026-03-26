@@ -73,9 +73,13 @@ export class EconomyService {
   }
 
   /**
-   * Reset gold to starting amount.
+   * Reset gold to starting amount or a new amount.
+   * @param {number} [newStartingGold] - Optional new starting gold
    */
-  reset() {
+  reset(newStartingGold) {
+    if (newStartingGold !== undefined) {
+      this._startingGold = newStartingGold;
+    }
     this._gold = this._startingGold;
     console.log(`[EconomyService] Reset to ${this._gold}`);
   }

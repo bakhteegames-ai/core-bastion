@@ -179,9 +179,16 @@ export class TowerController {
   }
 
   /**
-   * Clear all towers.
+   * Clear all towers (unregister, don't destroy entities).
    */
   clear() {
     this.towers = [];
+  }
+
+  /**
+   * Clear all towers (alias for clear).
+   */
+  clearTowers() {
+    this.clear();
   }
 }

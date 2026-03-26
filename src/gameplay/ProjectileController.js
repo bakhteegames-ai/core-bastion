@@ -171,6 +171,13 @@ export class ProjectileController {
   }
 
   /**
+   * Clear all projectiles (alias for destroyAll).
+   */
+  clearProjectiles() {
+    this.destroyAll();
+  }
+
+  /**
    * Get active projectile count.
    */
   getCount() {

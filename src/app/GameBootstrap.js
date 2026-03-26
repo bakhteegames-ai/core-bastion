@@ -15,7 +15,7 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 
 /**
  * GameBootstrap
- * Task 3.4: Save High Wave
+ * Task 3.5: Defeat Screen
  */
 export class GameBootstrap {
   constructor() {
@@ -99,6 +99,11 @@ export class GameBootstrap {
     // Initialize save service
     this.saveService = new SaveService();
     this.hudController.setHighWave(this.saveService.highWave);
+
+    // Setup restart callback
+    this.hudController.setOnRestart(() => {
+      this._restartGame();
+    });
 
     this._updateHud();
 
@@ -250,6 +255,10 @@ export class GameBootstrap {
   _onDefeat() {
     console.log('[GameBootstrap] DEFEAT - Base HP reached 0');
     this.stateMachine.transition(GameState.DEFEAT);
+    this.hudController.showDefeat(
+      this.waveManager.currentWave,
+      this.saveService.highWave
+    );
   }
 
   onUpdate(dt) {
@@ -307,5 +316,50 @@ export class GameBootstrap {
 
   _updateHudGold() {
     this.hudController.setGold(this.economyService.gold);
+  }
+
+  /**
+   * Restart the game after defeat.
+   */
+  _restartGame() {
+    console.log('[GameBootstrap] Restarting game...');
+
+    // Hide defeat screen
+    this.hudController.hideDefeat();
+
+    // Clear all enemies
+    for (const enemy of this.enemies) {
+      enemy.destroy();
+    }
+    this.enemies = [];
+
+    // Remove all towers
+    this.buildManager.removeAllTowers();
+    this.towerController.clearTowers();
+
+    // Clear projectiles
+    this.projectileController.clearProjectiles();
+
+    // Reset wave manager
+    this.waveManager.reset();
+
+    // Reset base health
+    this.baseHealth.reset();
+
+    // Reset economy
+    this.economyService.reset(STARTING_GOLD);
+
+    // Reset state machine
+    this.stateMachine = new GameStateMachine();
+    this.stateMachine.initialize(); // BOOT state
+    this.stateMachine.transition(GameState.READY);
+
+    // Update HUD
+    this._updateHud();
+
+    // Start first build phase
+    this._startBuildPhase();
+
+    console.log('[GameBootstrap] Game restarted');
   }
 }
