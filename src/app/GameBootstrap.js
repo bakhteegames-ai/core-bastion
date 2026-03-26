@@ -6,26 +6,27 @@ import { EconomyService } from '../gameplay/EconomyService.js';
 import { BuildManager } from '../gameplay/BuildManager.js';
 import { TowerController } from '../gameplay/TowerController.js';
 import { ProjectileController } from '../gameplay/ProjectileController.js';
+import { WaveManager } from '../gameplay/WaveManager.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 import { STARTING_GOLD } from './constants.js';
 
 /**
  * GameBootstrap
- * Task 2.5: Projectile and hit logic.
+ * Task 3.1: Wave Manager Baseline
  */
 export class GameBootstrap {
   constructor() {
     this.app = null;
     this.canvas = null;
     this.sceneFactory = null;
-    this.testEnemy = null;
     this.enemies = [];
     this.baseHealth = null;
     this.economyService = null;
     this.buildManager = null;
     this.towerController = null;
     this.projectileController = null;
+    this.waveManager = null;
     this.stateMachine = null;
   }
 
@@ -63,12 +64,22 @@ export class GameBootstrap {
 
     this.towerController = new TowerController(this.app, this.projectileController);
 
+    // Initialize wave manager
+    this.waveManager = new WaveManager(this.app);
+    this.waveManager.setOnSpawnEnemy((enemyData) => {
+      this._spawnEnemy(enemyData);
+    });
+    this.waveManager.setOnWaveComplete((waveNumber) => {
+      this._onWaveComplete(waveNumber);
+    });
+
     this._setupBuildSlotClickDetection();
 
     this.app.on('update', this.onUpdate, this);
     this.app.start();
 
-    this._spawnTestEnemy();
+    // Start wave 1
+    this.waveManager.startNextWave();
 
     console.log('GameBootstrap initialized - battlefield visible');
     console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
@@ -112,43 +123,62 @@ export class GameBootstrap {
     }
   }
 
-  _spawnTestEnemy() {
-    this.testEnemy = new EnemyAgent(this.app);
-    this.testEnemy.setOnReachEndpoint((enemy) => {
-      this._onEnemyLeak(enemy);
+  /**
+   * Spawn an enemy with wave data.
+   */
+  _spawnEnemy(enemyData) {
+    const enemy = new EnemyAgent(this.app, {
+      hp: enemyData.hp,
+      speed: enemyData.speed,
+      goldReward: enemyData.goldReward
     });
-    this.testEnemy.setOnDeath((enemy) => {
-      this._onEnemyDeath(enemy);
+
+    enemy.setOnReachEndpoint((e) => {
+      this._onEnemyLeak(e);
     });
-    this.enemies.push(this.testEnemy);
+
+    enemy.setOnDeath((e) => {
+      this._onEnemyDeath(e);
+    });
+
+    this.enemies.push(enemy);
   }
 
   _onEnemyLeak(enemy) {
     console.log('[GameBootstrap] Enemy leaked, applying damage to base');
     this.baseHealth.takeDamage(ENEMY_LEAK_DAMAGE);
+
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
       this.enemies.splice(index, 1);
     }
-    this.testEnemy = null;
+
+    // Notify wave manager
+    this.waveManager.onEnemyRemoved();
   }
 
-  /**
-   * Handle enemy death (killed by tower).
-   * Task 2.6: Grant gold reward on kill.
-   */
   _onEnemyDeath(enemy) {
     const reward = enemy.goldReward;
     console.log(`[GameBootstrap] Enemy killed, granting ${reward} gold`);
     this.economyService.addGold(reward);
 
-    // Remove from enemies array
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
       this.enemies.splice(index, 1);
     }
 
-    this.testEnemy = null;
+    // Notify wave manager
+    this.waveManager.onEnemyRemoved();
+  }
+
+  _onWaveComplete(waveNumber) {
+    console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
+    // Auto-start next wave for testing (Task 3.2 will add build phase)
+    setTimeout(() => {
+      if (!this.stateMachine.isInState(GameState.DEFEAT)) {
+        this.waveManager.startNextWave();
+      }
+    }, 1000);
   }
 
   _onDefeat() {
@@ -161,11 +191,20 @@ export class GameBootstrap {
       return;
     }
 
-    if (this.testEnemy && this.testEnemy.isActive) {
-      this.testEnemy.update(dt);
+    // Update wave manager (spawning)
+    this.waveManager.update(dt);
+
+    // Update all enemies
+    for (const enemy of this.enemies) {
+      if (enemy.isActive) {
+        enemy.update(dt);
+      }
     }
 
+    // Update towers
     this.towerController.update(this.enemies, dt);
+
+    // Update projectiles
     this.projectileController.update(dt);
   }
 }
