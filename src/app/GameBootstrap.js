@@ -9,13 +9,14 @@ import { ProjectileController } from '../gameplay/ProjectileController.js';
 import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
 import { SaveService } from '../save/SaveService.js';
+import { AudioService } from '../audio/AudioService.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 
 /**
  * GameBootstrap
- * Task 4.1: Main Menu
+ * Task 5.2: Audio Placeholders
  */
 export class GameBootstrap {
   constructor() {
@@ -32,6 +33,7 @@ export class GameBootstrap {
     this.stateMachine = null;
     this.hudController = null;
     this.saveService = null;
+    this.audioService = null;
 
     // Build phase timing
     this.buildPhaseTimer = 0;
@@ -106,18 +108,25 @@ export class GameBootstrap {
     this.saveService = new SaveService();
     this.hudController.setHighWave(this.saveService.highWave);
 
+    // Initialize audio service
+    this.audioService = new AudioService();
+
     // Setup restart callback
     this.hudController.setOnRestart(() => {
+      this.audioService.playButtonClick();
       this._restartGame();
     });
 
     // Setup play callback
     this.hudController.setOnPlay(() => {
+      this.audioService.playButtonClick();
+      this.audioService.initContext();
       this._startGame();
     });
 
     // Setup continue callback
     this.hudController.setOnContinue(() => {
+      this.audioService.playButtonClick();
       this._continueGame();
     });
 
@@ -204,6 +213,7 @@ export class GameBootstrap {
     if (towerData) {
       this.towerController.registerTower(towerData);
       this._updateHudGold();
+      this.audioService.playBuildTower();
     }
   }
 
@@ -232,6 +242,7 @@ export class GameBootstrap {
     console.log('[GameBootstrap] Enemy leaked, applying damage to base');
     this.baseHealth.takeDamage(ENEMY_LEAK_DAMAGE);
     this._updateHudHP();
+    this.audioService.playEnemyLeak();
 
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
@@ -247,6 +258,7 @@ export class GameBootstrap {
     console.log(`[GameBootstrap] Enemy killed, granting ${reward} gold`);
     this.economyService.addGold(reward);
     this._updateHudGold();
+    this.audioService.playEnemyDeath();
 
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
@@ -259,10 +271,12 @@ export class GameBootstrap {
 
   _onWaveStart(waveNumber) {
     this.hudController.setWave(waveNumber);
+    this.audioService.playWaveStart();
   }
 
   _onWaveComplete(waveNumber) {
     console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
+    this.audioService.playWaveComplete();
     // Update high wave
     if (this.saveService.updateHighWave(waveNumber)) {
       this.hudController.setHighWave(this.saveService.highWave);
@@ -274,6 +288,7 @@ export class GameBootstrap {
   _onDefeat() {
     console.log('[GameBootstrap] DEFEAT - Base HP reached 0');
     this.stateMachine.transition(GameState.DEFEAT);
+    this.audioService.playDefeat();
     this.hudController.showDefeat(
       this.waveManager.currentWave,
       this.saveService.highWave
