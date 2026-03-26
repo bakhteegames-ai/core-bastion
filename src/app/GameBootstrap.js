@@ -4,6 +4,7 @@ import { EnemyAgent } from '../gameplay/EnemyAgent.js';
 import { BaseHealth } from '../gameplay/BaseHealth.js';
 import { EconomyService } from '../gameplay/EconomyService.js';
 import { BuildManager } from '../gameplay/BuildManager.js';
+import { TowerController } from '../gameplay/TowerController.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 import { STARTING_GOLD } from './constants.js';
@@ -17,6 +18,7 @@ import { STARTING_GOLD } from './constants.js';
  * Task 1.6: Leak damage integration with base health.
  * Task 2.2: Build slot click detection.
  * Task 2.3: Tower build placement.
+ * Task 2.4: Tower targeting.
  */
 export class GameBootstrap {
   constructor() {
@@ -24,9 +26,11 @@ export class GameBootstrap {
     this.canvas = null;
     this.sceneFactory = null;
     this.testEnemy = null;
+    this.enemies = []; // Track all active enemies
     this.baseHealth = null;
     this.economyService = null;
     this.buildManager = null;
+    this.towerController = null;
     this.stateMachine = null;
   }
 
@@ -68,6 +72,9 @@ export class GameBootstrap {
 
     // Initialize build manager
     this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory);
+
+    // Initialize tower controller
+    this.towerController = new TowerController(this.app);
 
     // Setup build slot click detection
     this._setupBuildSlotClickDetection();
@@ -137,7 +144,12 @@ export class GameBootstrap {
     console.log(`[GameBootstrap] Build slot ${slotId} clicked`);
 
     // Attempt to build a tower
-    this.buildManager.buildTower(slotId, entity);
+    const towerData = this.buildManager.buildTower(slotId, entity);
+
+    // Register tower with controller if build succeeded
+    if (towerData) {
+      this.towerController.registerTower(towerData);
+    }
   }
 
   /**
@@ -148,6 +160,9 @@ export class GameBootstrap {
     this.testEnemy.setOnReachEndpoint((enemy) => {
       this._onEnemyLeak(enemy);
     });
+
+    // Add to enemies array for tower targeting
+    this.enemies.push(this.testEnemy);
   }
 
   /**
@@ -156,6 +171,13 @@ export class GameBootstrap {
   _onEnemyLeak(enemy) {
     console.log('[GameBootstrap] Enemy leaked, applying damage to base');
     this.baseHealth.takeDamage(ENEMY_LEAK_DAMAGE);
+
+    // Remove from enemies array
+    const index = this.enemies.indexOf(enemy);
+    if (index !== -1) {
+      this.enemies.splice(index, 1);
+    }
+
     this.testEnemy = null;
   }
 
@@ -177,5 +199,8 @@ export class GameBootstrap {
     if (this.testEnemy && this.testEnemy.isActive) {
       this.testEnemy.update(dt);
     }
+
+    // Update tower targeting
+    this.towerController.update(this.enemies);
   }
 }

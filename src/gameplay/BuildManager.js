@@ -55,13 +55,15 @@ export class BuildManager {
     this.sceneFactory.setSlotOccupied(slotId);
 
     // Track tower
-    this.towers.push({
+    const towerData = {
       slotId: slotId,
-      entity: tower
-    });
+      entity: tower,
+      position: position
+    };
+    this.towers.push(towerData);
 
     console.log(`[BuildManager] Tower built on slot ${slotId}, gold remaining: ${this.economyService.gold}`);
-    return true;
+    return towerData;
   }
 
   /**
