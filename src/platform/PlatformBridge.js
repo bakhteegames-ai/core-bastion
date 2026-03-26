@@ -1,25 +1,12 @@
 /**
  * PlatformBridge
  * Abstract interface for platform-specific functionality.
- * Provides a unified API for ads, storage, and platform info.
- *
- * Platform implementations (YandexBridge, EditorBridge) must implement all methods.
- */
-
-/**
- * @typedef {Object} PlatformBridgeInterface
- * @property {Function} init - Initialize the platform SDK
- * @property {Function} showFullscreenAd - Show interstitial/fullscreen ad
- * @property {Function} showRewardedAd - Show rewarded video ad
- * @property {Function} getLanguage - Get current platform language
- * @property {Function} saveData - Save data to platform storage
- * @property {Function} loadData - Load data from platform storage
- * @property {Function} isInitialized - Check if platform is initialized
+ * Exact API per docs specification.
  */
 
 /**
  * Base PlatformBridge class.
- * Subclasses must override all methods.
+ * Subclasses must implement all methods.
  */
 export class PlatformBridge {
   constructor() {
@@ -28,51 +15,54 @@ export class PlatformBridge {
 
   /**
    * Initialize the platform SDK.
-   * @returns {Promise<boolean>}
+   * @returns {Promise<void>}
    */
   async init() {
     throw new Error('PlatformBridge.init() must be implemented by subclass');
   }
 
   /**
-   * Show fullscreen/interstitial ad.
-   * @returns {Promise<boolean>} - true if ad was shown or skipped gracefully
+   * Signal that the game is ready for interaction.
+   * Calls platform loading API to dismiss loading screen.
+   * @returns {Promise<void>}
    */
-  async showFullscreenAd() {
-    throw new Error('PlatformBridge.showFullscreenAd() must be implemented by subclass');
+  async ready() {
+    throw new Error('PlatformBridge.ready() must be implemented by subclass');
+  }
+
+  /**
+   * Show interstitial/fullscreen ad.
+   * @param {string} context - Context for ad (e.g., 'restart', 'menu')
+   * @returns {Promise<{ shown: boolean; reason?: string }>}
+   */
+  async showInterstitial(context) {
+    throw new Error('PlatformBridge.showInterstitial() must be implemented by subclass');
   }
 
   /**
    * Show rewarded video ad.
-   * @returns {Promise<boolean>} - true if reward was granted
+   * @param {string} rewardType - Type of reward (e.g., 'continue')
+   * @returns {Promise<{ rewarded: boolean; shown: boolean; reason?: string }>}
    */
-  async showRewardedAd() {
-    throw new Error('PlatformBridge.showRewardedAd() must be implemented by subclass');
+  async showRewarded(rewardType) {
+    throw new Error('PlatformBridge.showRewarded() must be implemented by subclass');
   }
 
   /**
-   * Get current platform language.
-   * @returns {string} - Language code (e.g., 'en', 'ru')
+   * Save progress to platform storage.
+   * @param {{ bestWave: number }} payload
+   * @returns {Promise<{ ok: boolean; reason?: string }>}
    */
-  getLanguage() {
-    throw new Error('PlatformBridge.getLanguage() must be implemented by subclass');
+  async saveProgress(payload) {
+    throw new Error('PlatformBridge.saveProgress() must be implemented by subclass');
   }
 
   /**
-   * Save data to platform storage.
-   * @param {Object} data - Data to save
-   * @returns {Promise<boolean>}
+   * Load progress from platform storage.
+   * @returns {Promise<{ ok: boolean; data: { bestWave: number }; reason?: string }>}
    */
-  async saveData(data) {
-    throw new Error('PlatformBridge.saveData() must be implemented by subclass');
-  }
-
-  /**
-   * Load data from platform storage.
-   * @returns {Promise<Object|null>}
-   */
-  async loadData() {
-    throw new Error('PlatformBridge.loadData() must be implemented by subclass');
+  async loadProgress() {
+    throw new Error('PlatformBridge.loadProgress() must be implemented by subclass');
   }
 
   /**
@@ -82,14 +72,21 @@ export class PlatformBridge {
   get isInitialized() {
     return this._initialized;
   }
+
+  /**
+   * Get current language (normalized to 'en' or 'ru').
+   * @returns {string}
+   */
+  getLanguage() {
+    return 'en';
+  }
 }
 
 /**
  * Create the appropriate platform bridge based on environment.
- * @returns {PlatformBridge}
+ * @returns {Promise<PlatformBridge>}
  */
 export async function createPlatformBridge() {
-  // Check for Yandex environment
   const isYandex = _detectYandexEnvironment();
 
   if (isYandex) {
@@ -98,7 +95,6 @@ export async function createPlatformBridge() {
     return new YandexBridge();
   }
 
-  // Default to EditorBridge (stub/local development)
   console.log('[PlatformBridge] Using EditorBridge (local development)');
   const { EditorBridge } = await import('./EditorBridge.js');
   return new EditorBridge();

@@ -2,14 +2,13 @@
  * SaveService
  * Persists and loads game progress.
  * MVP Schema: { bestWave: number }
- * Task 3.4: Save High Wave
+ * Uses PlatformBridge for storage.
  */
 
 const STORAGE_KEY = 'core_bastion_mvp';
 
 /**
  * Default save data schema for MVP.
- * @type {Object}
  */
 const DEFAULT_SAVE_DATA = {
   bestWave: 0
@@ -24,7 +23,6 @@ export class SaveService {
 
   /**
    * Initialize and load saved data.
-   * Call after platformBridge is ready.
    * @returns {Promise<void>}
    */
   async initialize() {
@@ -33,16 +31,19 @@ export class SaveService {
   }
 
   /**
-   * Load saved data from platform storage or localStorage.
+   * Load saved data from platform storage.
    * @returns {Promise<void>}
    */
   async _load() {
     try {
       let data = null;
 
-      // Try platform bridge first (Yandex cloud storage)
+      // Use platform bridge if available
       if (this._platformBridge && this._platformBridge.isInitialized) {
-        data = await this._platformBridge.loadData();
+        const result = await this._platformBridge.loadProgress();
+        if (result.ok) {
+          data = result.data;
+        }
       }
 
       // Fallback to localStorage
@@ -53,7 +54,7 @@ export class SaveService {
         }
       }
 
-      // Validate and apply schema: { bestWave: number }
+      // Validate schema: { bestWave: number }
       if (data && typeof data.bestWave === 'number') {
         this._bestWave = data.bestWave;
         console.log(`[SaveService] Loaded bestWave: ${this._bestWave}`);
@@ -68,22 +69,19 @@ export class SaveService {
   }
 
   /**
-   * Save data to platform storage and localStorage.
-   * Schema: { bestWave: number }
+   * Save data to platform storage.
    * @returns {Promise<void>}
    */
   async _save() {
-    const data = {
-      bestWave: this._bestWave
-    };
+    const payload = { bestWave: this._bestWave };
 
     try {
-      // Save to localStorage (always, as backup)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Always save to localStorage as backup
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 
       // Save to platform bridge if available
       if (this._platformBridge && this._platformBridge.isInitialized) {
-        await this._platformBridge.saveData(data);
+        await this._platformBridge.saveProgress(payload);
       }
 
       console.log(`[SaveService] Saved bestWave: ${this._bestWave}`);
@@ -101,7 +99,7 @@ export class SaveService {
   }
 
   /**
-   * Alias for bestWave (backward compatibility).
+   * Alias for bestWave.
    * @returns {number}
    */
   get highWave() {
@@ -110,8 +108,8 @@ export class SaveService {
 
   /**
    * Update best wave if current wave is higher.
-   * @param {number} wave - Current wave number
-   * @returns {Promise<boolean>} - true if new best wave was set
+   * @param {number} wave
+   * @returns {Promise<boolean>}
    */
   async updateBestWave(wave) {
     if (wave > this._bestWave) {
@@ -124,7 +122,7 @@ export class SaveService {
   }
 
   /**
-   * Alias for updateBestWave (backward compatibility).
+   * Alias for updateBestWave.
    * @param {number} wave
    * @returns {Promise<boolean>}
    */
@@ -149,7 +147,7 @@ export class SaveService {
     try {
       localStorage.removeItem(STORAGE_KEY);
       if (this._platformBridge && this._platformBridge.isInitialized) {
-        await this._platformBridge.saveData(DEFAULT_SAVE_DATA);
+        await this._platformBridge.saveProgress(DEFAULT_SAVE_DATA);
       }
     } catch (e) {
       console.warn('[SaveService] Failed to clear save data:', e);

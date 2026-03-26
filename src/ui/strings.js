@@ -1,7 +1,7 @@
 /**
  * UI Strings - Localization
  * Canonical EN/RU string table for MVP.
- * Task 3.3: HUD Core - String constants
+ * Uses lowercase dot-notation keys.
  */
 
 /**
@@ -10,77 +10,77 @@
 export const SUPPORTED_LANGUAGES = ['en', 'ru'];
 
 /**
- * Default language (Russian for Yandex Games primary audience)
+ * Default language
  */
-export const DEFAULT_LANGUAGE = 'ru';
+export const DEFAULT_LANGUAGE = 'en';
 
 /**
  * Complete string table for all UI text.
  * Structure: { en: {...}, ru: {...} }
+ * Keys use lowercase dot-notation.
  */
 export const STRINGS = {
   en: {
-    // HUD labels
-    WAVE: 'Wave',
-    BASE_HP: 'Base HP',
-    GOLD: 'Gold',
-    BUILD_PHASE: 'Build Phase',
-    BEST: 'Best',
-
-    // Main menu
-    GAME_TITLE: 'Core Bastion',
-    SUBTITLE: 'Tower Defense',
-    BEST_WAVE: 'Best Wave',
-    PLAY: 'Play',
-
-    // Defeat screen
-    DEFEAT: 'Defeat',
-    DEFEAT_WAVE: 'Wave',
-    DEFEAT_BEST: 'Best',
-    CONTINUE_AD: 'Continue (Ad)',
-    RESTART: 'Restart',
-
-    // Game messages
-    NOT_ENOUGH_GOLD: 'Not enough gold',
-    SLOT_OCCUPIED: 'Slot occupied'
+    // HUD
+    'hud.wave': 'Wave',
+    'hud.hp': 'Base HP',
+    'hud.gold': 'Gold',
+    'hud.build_phase': 'Build Phase',
+    'hud.best': 'Best',
+    
+    // Menu
+    'menu.title': 'Core Bastion',
+    'menu.subtitle': 'Tower Defense',
+    'menu.best_wave': 'Best Wave',
+    'menu.play': 'Play',
+    
+    // Defeat
+    'defeat.title': 'Defeat',
+    'defeat.wave': 'Wave',
+    'defeat.best': 'Best',
+    'defeat.continue_ad': 'Continue (Ad)',
+    'defeat.restart': 'Restart',
+    
+    // Messages
+    'msg.not_enough_gold': 'Not enough gold',
+    'msg.slot_occupied': 'Slot occupied'
   },
 
   ru: {
-    // HUD labels
-    WAVE: 'Волна',
-    BASE_HP: 'HP Базы',
-    GOLD: 'Золото',
-    BUILD_PHASE: 'Подготовка',
-    BEST: 'Рекорд',
-
-    // Main menu
-    GAME_TITLE: 'Core Bastion',
-    SUBTITLE: 'Tower Defense',
-    BEST_WAVE: 'Лучшая волна',
-    PLAY: 'Играть',
-
-    // Defeat screen
-    DEFEAT: 'Поражение',
-    DEFEAT_WAVE: 'Волна',
-    DEFEAT_BEST: 'Рекорд',
-    CONTINUE_AD: 'Продолжить (Реклама)',
-    RESTART: 'Заново',
-
-    // Game messages
-    NOT_ENOUGH_GOLD: 'Недостаточно золота',
-    SLOT_OCCUPIED: 'Слот занят'
+    // HUD
+    'hud.wave': 'Волна',
+    'hud.hp': 'HP Базы',
+    'hud.gold': 'Золото',
+    'hud.build_phase': 'Подготовка',
+    'hud.best': 'Рекорд',
+    
+    // Menu
+    'menu.title': 'Core Bastion',
+    'menu.subtitle': 'Tower Defense',
+    'menu.best_wave': 'Лучшая волна',
+    'menu.play': 'Играть',
+    
+    // Defeat
+    'defeat.title': 'Поражение',
+    'defeat.wave': 'Волна',
+    'defeat.best': 'Рекорд',
+    'defeat.continue_ad': 'Продолжить (Реклама)',
+    'defeat.restart': 'Заново',
+    
+    // Messages
+    'msg.not_enough_gold': 'Недостаточно золота',
+    'msg.slot_occupied': 'Слот занят'
   }
 };
 
 /**
  * Get a string in the specified language.
- * Falls back to default language if key or language not found.
- * @param {string} key - String key (e.g., 'WAVE', 'PLAY')
+ * @param {string} key - String key (e.g., 'hud.wave', 'menu.play')
  * @param {string} lang - Language code ('en' or 'ru')
  * @returns {string}
  */
 export function getString(key, lang = DEFAULT_LANGUAGE) {
-  // Validate language
+  // Normalize language
   if (!SUPPORTED_LANGUAGES.includes(lang)) {
     lang = DEFAULT_LANGUAGE;
   }
@@ -112,4 +112,15 @@ export function getStrings(lang = DEFAULT_LANGUAGE) {
     lang = DEFAULT_LANGUAGE;
   }
   return { ...STRINGS[lang] };
+}
+
+/**
+ * Normalize a language code to 'en' or 'ru'.
+ * @param {string} lang - Raw language code
+ * @returns {string}
+ */
+export function normalizeLanguage(lang) {
+  if (!lang) return DEFAULT_LANGUAGE;
+  const code = lang.split('-')[0].toLowerCase();
+  return code === 'ru' ? 'ru' : 'en';
 }

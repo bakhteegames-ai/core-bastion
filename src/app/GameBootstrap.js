@@ -44,6 +44,10 @@ export class GameBootstrap {
     
     // Continue used flag
     this._continueUsed = false;
+
+    // Session defeat counter (for interstitial scheduling)
+    // Reset on page reload, persisted only in memory
+    this._sessionDefeatCount = 0;
   }
 
   init() {
@@ -128,6 +132,9 @@ export class GameBootstrap {
       // Update HUD with loaded bestWave
       this.hudController.setHighWave(this.saveService.bestWave);
       this.hudController.showMainMenu(this.saveService.bestWave);
+      
+      // Signal platform that game is ready for interaction
+      await bridge.ready();
       
       console.log(`[GameBootstrap] Platform bridge ready (lang: ${lang})`);
     });
@@ -214,9 +221,9 @@ export class GameBootstrap {
     const camera = this.sceneFactory.getCamera();
     if (!camera) return;
 
-    // Normalize coordinates to 0-1 range
-    const x = event.x / this.canvas.clientWidth;
-    const y = event.y / this.canvas.clientHeight;
+    // Use raw PlayCanvas screen coordinates (pixels) for screenToWorld
+    const x = event.x;
+    const y = event.y;
 
     // Get ray from camera through click point
     const from = camera.camera.screenToWorld(x, y, camera.camera.nearClip);
@@ -382,6 +389,11 @@ export class GameBootstrap {
 
   _onDefeat() {
     console.log('[GameBootstrap] DEFEAT - Base HP reached 0');
+    
+    // Increment session defeat counter (for interstitial scheduling)
+    this._sessionDefeatCount++;
+    console.log(`[GameBootstrap] Session defeat count: ${this._sessionDefeatCount}`);
+    
     this.stateMachine.transition(GameState.DEFEAT);
     this.audioService.playDefeat();
     this.hudController.showDefeat(
@@ -490,12 +502,12 @@ export class GameBootstrap {
     this._pauseForAd();
 
     // Show rewarded ad
-    const rewarded = await this.platformBridge.showRewardedAd();
+    const result = await this.platformBridge.showRewarded('continue');
 
     // Resume game after ad
     this._resumeAfterAd();
 
-    if (!rewarded) {
+    if (!result.rewarded) {
       // Ad not completed - return to DEFEAT state (AD_PAUSED → DEFEAT per §16.3)
       console.log('[GameBootstrap] Ad not completed, returning to DEFEAT');
       this.stateMachine.transition(GameState.DEFEAT);
@@ -513,42 +525,60 @@ export class GameBootstrap {
     // Hide defeat screen
     this.hudController.hideDefeat();
 
-    // Restore HP to max (full restore per continue spec)
-    this.baseHealth.reset();
+    // Restore HP to exactly 5 (per docs spec)
+    this.baseHealth.setHP(5);
     this._updateHudHP();
 
     // Transition to WAVE_ACTIVE (AD_PAUSED → WAVE_ACTIVE per §16.3)
+    // Do NOT reset wave number or remove towers
     this.stateMachine.transition(GameState.WAVE_ACTIVE);
-    
-    // Continue from current wave (start build phase for next wave)
-    this._startBuildPhase();
 
-    console.log('[GameBootstrap] Continued! HP restored to full');
+    console.log('[GameBootstrap] Continued! HP restored to 5, wave preserved');
   }
 
   /**
    * Restart the game after defeat.
-   * Follows state machine spec: DEFEAT → BOOT → READY → BUILD_PHASE
-   * Shows interstitial ad before restart (per session rules).
+   * Shows interstitial ad only on every 3rd defeat per session.
+   * Uses DEFEAT → AD_PAUSED → BOOT if interstitial scheduled.
+   * Uses DEFEAT → BOOT if no interstitial scheduled.
    */
   async _restartGame() {
     console.log('[GameBootstrap] Restarting game...');
 
-    // Transition to BOOT state (DEFEAT → BOOT per §16.3)
-    if (!this.stateMachine.transition(GameState.BOOT)) {
-      console.error('[GameBootstrap] Failed to transition to BOOT state');
-      return;
+    // Check if interstitial should be shown (every 3rd defeat)
+    const showInterstitial = this._sessionDefeatCount % 3 === 0 && this._sessionDefeatCount > 0;
+
+    if (showInterstitial) {
+      // Transition to AD_PAUSED first (DEFEAT → AD_PAUSED per §16.3)
+      if (!this.stateMachine.transition(GameState.AD_PAUSED)) {
+        console.warn('[GameBootstrap] Cannot transition to AD_PAUSED, proceeding without ad');
+      } else {
+        console.log('[GameBootstrap] Entered AD_PAUSED for interstitial...');
+
+        // Pause and mute game for ad compliance
+        this._pauseForAd();
+
+        // Show interstitial ad
+        console.log('[GameBootstrap] Showing interstitial ad...');
+        try {
+          await this.platformBridge.showInterstitial('restart');
+        } catch (e) {
+          console.warn('[GameBootstrap] Interstitial ad failed, continuing restart:', e);
+        }
+
+        // Resume game after ad
+        this._resumeAfterAd();
+
+        // Transition AD_PAUSED → BOOT
+        this.stateMachine.transition(GameState.BOOT);
+      }
+    } else {
+      // No interstitial scheduled: direct DEFEAT → BOOT
+      if (!this.stateMachine.transition(GameState.BOOT)) {
+        console.error('[GameBootstrap] Failed to transition to BOOT state');
+        return;
+      }
     }
-
-    // Pause and mute game for ad compliance
-    this._pauseForAd();
-
-    // Show interstitial ad before restart
-    console.log('[GameBootstrap] Showing interstitial ad...');
-    await this.platformBridge.showFullscreenAd();
-
-    // Resume game after ad
-    this._resumeAfterAd();
 
     // Hide defeat screen
     this.hudController.hideDefeat();

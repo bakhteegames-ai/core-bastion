@@ -1,7 +1,7 @@
 /**
  * YandexBridge
  * Integration with Yandex Games SDK.
- * Implements PlatformBridge interface for Yandex Games platform.
+ * Implements exact PlatformBridge API for Yandex Games platform.
  */
 
 import { PlatformBridge } from './PlatformBridge.js';
@@ -9,9 +9,8 @@ import { PlatformBridge } from './PlatformBridge.js';
 export class YandexBridge extends PlatformBridge {
   constructor() {
     super();
-    this._sdk = null;
-    this._player = null;
     this._ysdk = null;
+    this._player = null;
     this._storageKey = 'core_bastion_mvp';
   }
 
@@ -31,19 +30,18 @@ export class YandexBridge extends PlatformBridge {
 
   /**
    * Initialize Yandex SDK.
-   * @returns {Promise<boolean>}
+   * @returns {Promise<void>}
    */
   async init() {
     if (this._initialized) {
-      console.log('[YandexBridge] Already initialized');
-      return true;
+      return;
     }
 
     // Check if in Yandex environment
     if (!YandexBridge.isYandexEnvironment()) {
-      console.log('[YandexBridge] Not in Yandex environment, using stub mode');
+      console.log('[YandexBridge] Not in Yandex environment');
       this._initialized = true;
-      return true;
+      return;
     }
 
     try {
@@ -52,14 +50,30 @@ export class YandexBridge extends PlatformBridge {
 
       // Initialize SDK
       this._ysdk = await window.YaGames.init();
+      console.log('[YandexBridge] Yandex SDK initialized');
 
-      console.log('[YandexBridge] Yandex SDK initialized successfully');
       this._initialized = true;
-
-      return true;
     } catch (e) {
-      console.error('[YandexBridge] Failed to initialize Yandex SDK:', e);
-      return false;
+      console.error('[YandexBridge] Failed to initialize:', e);
+      throw e;
+    }
+  }
+
+  /**
+   * Signal that the game is ready for interaction.
+   * Calls Yandex LoadingAPI to dismiss the loading screen.
+   * @returns {Promise<void>}
+   */
+  async ready() {
+    if (this._ysdk && this._ysdk.features && this._ysdk.features.LoadingAPI) {
+      try {
+        this._ysdk.features.LoadingAPI.ready();
+        console.log('[YandexBridge] LoadingAPI.ready() called');
+      } catch (e) {
+        console.warn('[YandexBridge] LoadingAPI.ready() failed:', e);
+      }
+    } else {
+      console.log('[YandexBridge] ready() - no LoadingAPI available');
     }
   }
 
@@ -84,47 +98,47 @@ export class YandexBridge extends PlatformBridge {
   }
 
   /**
-   * Initialize player (optional, for extended features).
-   * @param {Object} options - Options for player init
-   * @returns {Promise<Object|null>}
+   * Initialize player for cloud storage (optional).
+   * @returns {Promise<void>}
    */
-  async initPlayer(options = { scopes: false }) {
+  async _initPlayer() {
+    if (this._player) return;
+
     if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not initialized, cannot init player');
-      return null;
+      console.log('[YandexBridge] No SDK, cannot init player');
+      return;
     }
 
     try {
-      this._player = await this._ysdk.getPlayer(options);
+      this._player = await this._ysdk.getPlayer({ scopes: false });
       console.log('[YandexBridge] Player initialized');
-      return this._player;
     } catch (e) {
-      console.error('[YandexBridge] Failed to initialize player:', e);
-      return null;
+      console.warn('[YandexBridge] Player init failed:', e);
     }
   }
 
   /**
-   * Show fullscreen/interstitial ad.
-   * @returns {Promise<boolean>}
+   * Show interstitial/fullscreen ad.
+   * @param {string} context - Context for ad (e.g., 'restart')
+   * @returns {Promise<{ shown: boolean; reason?: string }>}
    */
-  async showFullscreenAd() {
+  async showInterstitial(context) {
     if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not available, skipping fullscreen ad');
-      return true;
+      console.log(`[YandexBridge] showInterstitial("${context}") - no SDK`);
+      return { shown: false, reason: 'no_sdk' };
     }
 
     return new Promise((resolve) => {
       this._ysdk.adv.showFullscreenAdv({
         callbacks: {
-          onOpen: () => console.log('[YandexBridge] Fullscreen ad opened'),
+          onOpen: () => console.log('[YandexBridge] Interstitial opened'),
           onClose: (wasShown) => {
-            console.log('[YandexBridge] Fullscreen ad closed, shown:', wasShown);
-            resolve(true);
+            console.log(`[YandexBridge] Interstitial closed, shown: ${wasShown}`);
+            resolve({ shown: wasShown });
           },
           onError: (e) => {
-            console.error('[YandexBridge] Fullscreen ad error:', e);
-            resolve(true); // Resolve true to not block game flow
+            console.error('[YandexBridge] Interstitial error:', e);
+            resolve({ shown: false, reason: String(e) });
           }
         }
       });
@@ -133,29 +147,32 @@ export class YandexBridge extends PlatformBridge {
 
   /**
    * Show rewarded video ad.
-   * @returns {Promise<boolean>} - true if reward was granted
+   * @param {string} rewardType - Type of reward (e.g., 'continue')
+   * @returns {Promise<{ rewarded: boolean; shown: boolean; reason?: string }>}
    */
-  async showRewardedAd() {
+  async showRewarded(rewardType) {
     if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not available, simulating rewarded ad');
-      return true;
+      console.log(`[YandexBridge] showRewarded("${rewardType}") - no SDK`);
+      return { rewarded: false, shown: false, reason: 'no_sdk' };
     }
 
     return new Promise((resolve) => {
+      let rewarded = false;
+
       this._ysdk.adv.showRewardedVideo({
         callbacks: {
           onOpen: () => console.log('[YandexBridge] Rewarded ad opened'),
           onRewarded: () => {
+            rewarded = true;
             console.log('[YandexBridge] Rewarded ad granted');
-            resolve(true);
           },
           onClose: () => {
-            console.log('[YandexBridge] Rewarded ad closed without reward');
-            resolve(false);
+            console.log(`[YandexBridge] Rewarded ad closed, rewarded: ${rewarded}`);
+            resolve({ rewarded, shown: true });
           },
           onError: (e) => {
             console.error('[YandexBridge] Rewarded ad error:', e);
-            resolve(false);
+            resolve({ rewarded: false, shown: false, reason: String(e) });
           }
         }
       });
@@ -163,107 +180,85 @@ export class YandexBridge extends PlatformBridge {
   }
 
   /**
-   * Get current platform language.
-   * @returns {string}
+   * Save progress to platform storage.
+   * @param {{ bestWave: number }} payload
+   * @returns {Promise<{ ok: boolean; reason?: string }>}
    */
-  getLanguage() {
-    if (this._ysdk && this._ysdk.environment && this._ysdk.environment.i18n) {
-      return this._ysdk.environment.i18n.lang || 'ru';
-    }
-    return 'ru';
-  }
+  async saveProgress(payload) {
+    const data = { bestWave: payload.bestWave };
 
-  /**
-   * Save data to platform storage.
-   * Falls back to localStorage if player is not initialized.
-   * @param {Object} data - Data to save
-   * @returns {Promise<boolean>}
-   */
-  async saveData(data) {
-    // Try player data first (Yandex cloud storage)
+    // Try to init player for cloud storage
+    await this._initPlayer();
+
+    // Try player cloud storage first
     if (this._player) {
       try {
         await this._player.setData(data, false);
-        console.log('[YandexBridge] Data saved to player storage');
-        return true;
+        console.log(`[YandexBridge] saveProgress({ bestWave: ${payload.bestWave} }) to cloud`);
+        return { ok: true };
       } catch (e) {
-        console.error('[YandexBridge] Failed to save to player storage:', e);
+        console.warn('[YandexBridge] Cloud save failed, trying localStorage:', e);
       }
     }
 
     // Fallback to localStorage
     try {
       localStorage.setItem(this._storageKey, JSON.stringify(data));
-      console.log('[YandexBridge] Data saved to localStorage');
-      return true;
+      console.log(`[YandexBridge] saveProgress({ bestWave: ${payload.bestWave} }) to localStorage`);
+      return { ok: true };
     } catch (e) {
-      console.error('[YandexBridge] Failed to save to localStorage:', e);
-      return false;
+      console.error('[YandexBridge] saveProgress failed:', e);
+      return { ok: false, reason: e.message };
     }
   }
 
   /**
-   * Load data from platform storage.
-   * Falls back to localStorage if player is not initialized.
-   * @returns {Promise<Object|null>}
+   * Load progress from platform storage.
+   * @returns {Promise<{ ok: boolean; data: { bestWave: number }; reason?: string }>}
    */
-  async loadData() {
-    // Try player data first (Yandex cloud storage)
+  async loadProgress() {
+    // Try to init player for cloud storage
+    await this._initPlayer();
+
+    // Try player cloud storage first
     if (this._player) {
       try {
         const data = await this._player.getData();
-        console.log('[YandexBridge] Data loaded from player storage');
-        return data;
+        if (data && typeof data.bestWave === 'number') {
+          console.log(`[YandexBridge] loadProgress() from cloud: bestWave=${data.bestWave}`);
+          return { ok: true, data: { bestWave: data.bestWave } };
+        }
       } catch (e) {
-        console.error('[YandexBridge] Failed to load from player storage:', e);
+        console.warn('[YandexBridge] Cloud load failed, trying localStorage:', e);
       }
     }
 
     // Fallback to localStorage
     try {
-      const data = localStorage.getItem(this._storageKey);
-      if (data) {
-        console.log('[YandexBridge] Data loaded from localStorage');
-        return JSON.parse(data);
+      const saved = localStorage.getItem(this._storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        const bestWave = typeof data.bestWave === 'number' ? data.bestWave : 0;
+        console.log(`[YandexBridge] loadProgress() from localStorage: bestWave=${bestWave}`);
+        return { ok: true, data: { bestWave } };
       }
-      return null;
+      return { ok: true, data: { bestWave: 0 } };
     } catch (e) {
-      console.error('[YandexBridge] Failed to load from localStorage:', e);
-      return null;
+      console.error('[YandexBridge] loadProgress failed:', e);
+      return { ok: false, data: { bestWave: 0 }, reason: e.message };
     }
   }
 
   /**
-   * Get device type from SDK.
+   * Get current language (normalized to 'en' or 'ru').
    * @returns {string}
    */
-  getDeviceType() {
-    if (this._ysdk && this._ysdk.deviceInfo) {
-      return this._ysdk.deviceInfo.type || 'desktop';
+  getLanguage() {
+    if (this._ysdk && this._ysdk.environment && this._ysdk.environment.i18n) {
+      const lang = this._ysdk.environment.i18n.lang || 'en';
+      return lang === 'ru' ? 'ru' : 'en';
     }
-    return 'desktop';
-  }
-
-  /**
-   * Get player name (if available).
-   * @returns {string}
-   */
-  getPlayerName() {
-    if (this._player && this._player.name) {
-      return this._player.name;
-    }
-    return 'Player';
-  }
-
-  /**
-   * Get player avatar URL (if available).
-   * @returns {string|null}
-   */
-  getPlayerAvatar() {
-    if (this._player && this._player.photo) {
-      return this._player.photo;
-    }
-    return null;
+    return 'en';
   }
 
   /**
@@ -272,13 +267,5 @@ export class YandexBridge extends PlatformBridge {
    */
   get sdk() {
     return this._ysdk;
-  }
-
-  /**
-   * Get player object.
-   * @returns {Object|null}
-   */
-  get player() {
-    return this._player;
   }
 }

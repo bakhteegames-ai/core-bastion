@@ -1,7 +1,7 @@
 /**
  * EditorBridge
  * Platform bridge for local development / editor environment.
- * Implements PlatformBridge interface with stub behavior.
+ * Implements exact PlatformBridge API with stub behavior.
  */
 
 import { PlatformBridge } from './PlatformBridge.js';
@@ -10,77 +10,96 @@ export class EditorBridge extends PlatformBridge {
   constructor() {
     super();
     this._storageKey = 'core_bastion_mvp';
+    this._lang = 'en';
   }
 
   /**
    * Initialize the platform (no-op for editor).
-   * @returns {Promise<boolean>}
+   * @returns {Promise<void>}
    */
   async init() {
     console.log('[EditorBridge] Initialized (local development mode)');
     this._initialized = true;
-    return true;
   }
 
   /**
-   * Show fullscreen ad (stub - always succeeds).
-   * @returns {Promise<boolean>}
+   * Signal game ready (stub - immediate resolve).
+   * @returns {Promise<void>}
    */
-  async showFullscreenAd() {
-    console.log('[EditorBridge] showFullscreenAd() - stub, skipping ad');
-    return true;
+  async ready() {
+    console.log('[EditorBridge] ready() called - game ready for interaction');
+  }
+
+  /**
+   * Show interstitial ad (stub - always succeeds without showing).
+   * @param {string} context
+   * @returns {Promise<{ shown: boolean; reason?: string }>}
+   */
+  async showInterstitial(context) {
+    console.log(`[EditorBridge] showInterstitial("${context}") - stub, skipping ad`);
+    return { shown: false, reason: 'local_development' };
   }
 
   /**
    * Show rewarded ad (stub - simulates reward granted).
-   * @returns {Promise<boolean>}
+   * @param {string} rewardType
+   * @returns {Promise<{ rewarded: boolean; shown: boolean; reason?: string }>}
    */
-  async showRewardedAd() {
-    console.log('[EditorBridge] showRewardedAd() - stub, simulating reward');
-    return true;
+  async showRewarded(rewardType) {
+    console.log(`[EditorBridge] showRewarded("${rewardType}") - stub, simulating reward`);
+    return { rewarded: true, shown: false, reason: 'local_development' };
   }
 
   /**
-   * Get current language (defaults to Russian for Yandex target).
+   * Save progress to localStorage.
+   * @param {{ bestWave: number }} payload
+   * @returns {Promise<{ ok: boolean; reason?: string }>}
+   */
+  async saveProgress(payload) {
+    try {
+      const data = { bestWave: payload.bestWave };
+      localStorage.setItem(this._storageKey, JSON.stringify(data));
+      console.log(`[EditorBridge] saveProgress({ bestWave: ${payload.bestWave} })`);
+      return { ok: true };
+    } catch (e) {
+      console.error('[EditorBridge] Failed to save progress:', e);
+      return { ok: false, reason: e.message };
+    }
+  }
+
+  /**
+   * Load progress from localStorage.
+   * @returns {Promise<{ ok: boolean; data: { bestWave: number }; reason?: string }>}
+   */
+  async loadProgress() {
+    try {
+      const saved = localStorage.getItem(this._storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        const bestWave = typeof data.bestWave === 'number' ? data.bestWave : 0;
+        console.log(`[EditorBridge] loadProgress() -> bestWave: ${bestWave}`);
+        return { ok: true, data: { bestWave } };
+      }
+      return { ok: true, data: { bestWave: 0 } };
+    } catch (e) {
+      console.error('[EditorBridge] Failed to load progress:', e);
+      return { ok: false, data: { bestWave: 0 }, reason: e.message };
+    }
+  }
+
+  /**
+   * Get current language (defaults to en).
    * @returns {string}
    */
   getLanguage() {
-    // Check localStorage for saved language preference
+    // Check localStorage or browser language
     const savedLang = localStorage.getItem('core_bastion_lang');
-    return savedLang || 'ru';
-  }
-
-  /**
-   * Save data to localStorage.
-   * @param {Object} data - Data to save
-   * @returns {Promise<boolean>}
-   */
-  async saveData(data) {
-    try {
-      localStorage.setItem(this._storageKey, JSON.stringify(data));
-      console.log('[EditorBridge] Data saved to localStorage');
-      return true;
-    } catch (e) {
-      console.error('[EditorBridge] Failed to save data:', e);
-      return false;
+    if (savedLang === 'en' || savedLang === 'ru') {
+      return savedLang;
     }
-  }
-
-  /**
-   * Load data from localStorage.
-   * @returns {Promise<Object|null>}
-   */
-  async loadData() {
-    try {
-      const data = localStorage.getItem(this._storageKey);
-      if (data) {
-        console.log('[EditorBridge] Data loaded from localStorage');
-        return JSON.parse(data);
-      }
-      return null;
-    } catch (e) {
-      console.error('[EditorBridge] Failed to load data:', e);
-      return null;
-    }
+    
+    // Detect from browser
+    const browserLang = (navigator.language || 'en').split('-')[0].toLowerCase();
+    return browserLang === 'ru' ? 'ru' : 'en';
   }
 }

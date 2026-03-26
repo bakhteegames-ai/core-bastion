@@ -1,15 +1,14 @@
 /**
  * HudController
  * Manages HUD display elements with localization support.
- * Task 4.3: Continue with Ad
  */
 
 import { getString } from './strings.js';
 
 export class HudController {
   constructor() {
-    // Localization
-    this._lang = 'ru'; // Default to Russian
+    // Localization - default to 'en'
+    this._lang = 'en';
 
     // Cache DOM elements
     this._waveValue = document.getElementById('hud-wave-value');
@@ -104,54 +103,54 @@ export class HudController {
   _updateAllLabels() {
     // HUD labels
     if (this._waveLabel) {
-      this._waveLabel.textContent = getString('WAVE', this._lang);
+      this._waveLabel.textContent = getString('hud.wave', this._lang);
     }
     if (this._hpLabel) {
-      this._hpLabel.textContent = getString('BASE_HP', this._lang);
+      this._hpLabel.textContent = getString('hud.hp', this._lang);
     }
     if (this._goldLabel) {
-      this._goldLabel.textContent = getString('GOLD', this._lang);
+      this._goldLabel.textContent = getString('hud.gold', this._lang);
     }
     if (this._timerLabel) {
-      this._timerLabel.textContent = getString('BUILD_PHASE', this._lang);
+      this._timerLabel.textContent = getString('hud.build_phase', this._lang);
     }
 
     // Main menu
     if (this._menuSubtitle) {
-      this._menuSubtitle.textContent = getString('SUBTITLE', this._lang);
+      this._menuSubtitle.textContent = getString('menu.subtitle', this._lang);
     }
     if (this._menuBestLabel) {
-      this._menuBestLabel.innerHTML = `${getString('BEST_WAVE', this._lang)}: <span id="menu-best-value">${this._highWave}</span>`;
+      this._menuBestLabel.innerHTML = `${getString('menu.best_wave', this._lang)}: <span id="menu-best-value">${this._highWave}</span>`;
       // Re-cache the value element since we replaced it
       this._menuBestValue = document.getElementById('menu-best-value');
     }
     if (this._playBtn) {
-      this._playBtn.textContent = getString('PLAY', this._lang);
+      this._playBtn.textContent = getString('menu.play', this._lang);
     }
 
     // Defeat screen
     if (this._defeatTitle) {
-      this._defeatTitle.textContent = getString('DEFEAT', this._lang);
+      this._defeatTitle.textContent = getString('defeat.title', this._lang);
     }
     if (this._defeatWaveLabel) {
-      this._defeatWaveLabel.innerHTML = `${getString('DEFEAT_WAVE', this._lang)}: <span id="defeat-wave-value">${this._currentWave}</span>`;
+      this._defeatWaveLabel.innerHTML = `${getString('defeat.wave', this._lang)}: <span id="defeat-wave-value">${this._currentWave}</span>`;
       this._defeatWaveValue = document.getElementById('defeat-wave-value');
     }
     if (this._defeatBestLabel) {
-      this._defeatBestLabel.innerHTML = `${getString('DEFEAT_BEST', this._lang)}: <span id="defeat-best-value">${this._highWave}</span>`;
+      this._defeatBestLabel.innerHTML = `${getString('defeat.best', this._lang)}: <span id="defeat-best-value">${this._highWave}</span>`;
       this._defeatBestValue = document.getElementById('defeat-best-value');
     }
     if (this._continueBtn) {
-      this._continueBtn.textContent = getString('CONTINUE_AD', this._lang);
+      this._continueBtn.textContent = getString('defeat.continue_ad', this._lang);
     }
     if (this._restartBtn) {
-      this._restartBtn.textContent = getString('RESTART', this._lang);
+      this._restartBtn.textContent = getString('defeat.restart', this._lang);
     }
 
     // Update "Best" label in HUD wave panel
     const hudSub = document.querySelector('.hud-wave-panel .hud-sub');
     if (hudSub) {
-      hudSub.innerHTML = `${getString('BEST', this._lang)}: <span id="hud-highwave-value">${this._highWave}</span>`;
+      hudSub.innerHTML = `${getString('hud.best', this._lang)}: <span id="hud-highwave-value">${this._highWave}</span>`;
       this._highWaveValue = document.getElementById('hud-highwave-value');
     }
 
@@ -160,7 +159,6 @@ export class HudController {
 
   /**
    * Update the displayed wave number.
-   * @param {number} wave - Current wave number
    */
   setWave(wave) {
     this._currentWave = wave;
@@ -171,8 +169,6 @@ export class HudController {
 
   /**
    * Update the displayed base HP.
-   * @param {number} current - Current HP
-   * @param {number} max - Maximum HP
    */
   setBaseHP(current, max) {
     this._currentHP = current;
@@ -184,7 +180,6 @@ export class HudController {
 
   /**
    * Update the displayed gold.
-   * @param {number} gold - Current gold amount
    */
   setGold(gold) {
     this._currentGold = gold;
@@ -195,7 +190,6 @@ export class HudController {
 
   /**
    * Show or hide the build phase timer.
-   * @param {boolean} visible
    */
   setTimerVisible(visible) {
     this._timerVisible = visible;
@@ -210,7 +204,6 @@ export class HudController {
 
   /**
    * Update the build phase timer display.
-   * @param {number} seconds - Seconds remaining
    */
   setTimerValue(seconds) {
     if (this._timerValue) {
@@ -234,7 +227,6 @@ export class HudController {
 
   /**
    * Update the displayed high wave.
-   * @param {number} wave - Highest wave reached
    */
   setHighWave(wave) {
     this._highWave = wave;
@@ -252,8 +244,6 @@ export class HudController {
 
   /**
    * Show the defeat screen.
-   * @param {number} wave - Current wave when defeated
-   * @param {number} bestWave - Best wave achieved
    */
   showDefeat(wave, bestWave) {
     if (this._defeatWaveValue) {
@@ -278,7 +268,6 @@ export class HudController {
 
   /**
    * Set callback for restart button.
-   * @param {Function} callback
    */
   setOnRestart(callback) {
     this._onRestartCallback = callback;
@@ -286,7 +275,6 @@ export class HudController {
 
   /**
    * Set callback for play button.
-   * @param {Function} callback
    */
   setOnPlay(callback) {
     this._onPlayCallback = callback;
@@ -294,7 +282,6 @@ export class HudController {
 
   /**
    * Set callback for continue button.
-   * @param {Function} callback
    */
   setOnContinue(callback) {
     this._onContinueCallback = callback;
@@ -302,7 +289,6 @@ export class HudController {
 
   /**
    * Show the main menu.
-   * @param {number} bestWave - Best wave achieved
    */
   showMainMenu(bestWave) {
     this._highWave = bestWave;
