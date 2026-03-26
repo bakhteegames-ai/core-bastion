@@ -10,6 +10,7 @@ import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
 import { SaveService } from '../save/SaveService.js';
 import { AudioService } from '../audio/AudioService.js';
+import { YandexBridge } from '../platform/YandexBridge.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
@@ -110,6 +111,12 @@ export class GameBootstrap {
 
     // Initialize audio service
     this.audioService = new AudioService();
+
+    // Initialize Yandex bridge
+    this.yandexBridge = new YandexBridge();
+    this.yandexBridge.init().then(() => {
+      console.log('[GameBootstrap] Yandex bridge ready');
+    });
 
     // Setup restart callback
     this.hudController.setOnRestart(() => {
@@ -375,33 +382,43 @@ export class GameBootstrap {
    * Continue the game after watching ad.
    * Restores some HP and returns to build phase.
    */
-  _continueGame() {
+  async _continueGame() {
     // Only allow one continue per game
     if (this._continueUsed) {
       console.log('[GameBootstrap] Continue already used');
       return;
     }
 
-    console.log('[GameBootstrap] Continuing game...');
-    
+    console.log('[GameBootstrap] Showing ad for continue...');
+
+    // Show rewarded ad
+    const rewarded = await this.yandexBridge.showRewardedAd();
+
+    if (!rewarded) {
+      console.log('[GameBootstrap] Ad not completed or not available');
+      return;
+    }
+
+    console.log('[GameBootstrap] Ad watched, continuing game...');
+
     this._continueUsed = true;
-    
+
     // Hide defeat screen
     this.hudController.hideDefeat();
-    
+
     // Restore HP (5 HP or half of max, whichever is greater)
     const restoreAmount = Math.max(5, Math.floor(BASE_MAX_HP / 2));
     this.baseHealth.restore(restoreAmount);
     this._updateHudHP();
-    
+
     // Create new state machine and transition to READY then BUILD_PHASE
     this.stateMachine = new GameStateMachine();
     this.stateMachine.initialize(); // BOOT state
     this.stateMachine.transition(GameState.READY);
-    
+
     // Start build phase
     this._startBuildPhase();
-    
+
     console.log(`[GameBootstrap] Continued! Restored ${restoreAmount} HP`);
   }
 
