@@ -1,7 +1,7 @@
 /**
  * HudController
  * Manages HUD display elements.
- * Task 3.5: Defeat Screen
+ * Task 4.1: Main Menu
  */
 export class HudController {
   constructor() {
@@ -19,6 +19,11 @@ export class HudController {
     this._defeatBestValue = document.getElementById('defeat-best-value');
     this._restartBtn = document.getElementById('defeat-restart-btn');
 
+    // Main menu elements
+    this._mainMenu = document.getElementById('main-menu');
+    this._menuBestValue = document.getElementById('menu-best-value');
+    this._playBtn = document.getElementById('menu-play-btn');
+
     // Initial state
     this._currentWave = 0;
     this._currentHP = 10;
@@ -27,12 +32,22 @@ export class HudController {
     this._timerVisible = false;
     this._highWave = 0;
     this._onRestartCallback = null;
+    this._onPlayCallback = null;
 
     // Setup restart button
     if (this._restartBtn) {
       this._restartBtn.addEventListener('click', () => {
         if (this._onRestartCallback) {
           this._onRestartCallback();
+        }
+      });
+    }
+
+    // Setup play button
+    if (this._playBtn) {
+      this._playBtn.addEventListener('click', () => {
+        if (this._onPlayCallback) {
+          this._onPlayCallback();
         }
       });
     }
@@ -165,5 +180,35 @@ export class HudController {
    */
   setOnRestart(callback) {
     this._onRestartCallback = callback;
+  }
+
+  /**
+   * Set callback for play button.
+   * @param {Function} callback
+   */
+  setOnPlay(callback) {
+    this._onPlayCallback = callback;
+  }
+
+  /**
+   * Show the main menu.
+   * @param {number} bestWave - Best wave achieved
+   */
+  showMainMenu(bestWave) {
+    if (this._menuBestValue) {
+      this._menuBestValue.textContent = bestWave;
+    }
+    if (this._mainMenu) {
+      this._mainMenu.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Hide the main menu.
+   */
+  hideMainMenu() {
+    if (this._mainMenu) {
+      this._mainMenu.classList.add('hidden');
+    }
   }
 }

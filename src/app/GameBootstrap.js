@@ -15,7 +15,7 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 
 /**
  * GameBootstrap
- * Task 3.5: Defeat Screen
+ * Task 4.1: Main Menu
  */
 export class GameBootstrap {
   constructor() {
@@ -35,6 +35,9 @@ export class GameBootstrap {
 
     // Build phase timing
     this.buildPhaseTimer = 0;
+    
+    // Game started flag
+    this._gameStarted = false;
   }
 
   init() {
@@ -105,6 +108,11 @@ export class GameBootstrap {
       this._restartGame();
     });
 
+    // Setup play callback
+    this.hudController.setOnPlay(() => {
+      this._startGame();
+    });
+
     this._updateHud();
 
     // Setup input
@@ -114,17 +122,20 @@ export class GameBootstrap {
     this.app.on('update', this.onUpdate, this);
     this.app.start();
 
-    // Start first build phase (READY -> BUILD_PHASE)
-    this._startBuildPhase();
+    // Show main menu instead of starting game immediately
+    this.hudController.showMainMenu(this.saveService.highWave);
 
     console.log('GameBootstrap initialized');
-    console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
   }
 
   /**
    * Start build phase (before first wave or between waves).
    */
   _startBuildPhase() {
+    if (!this.stateMachine.canTransitionTo(GameState.BUILD_PHASE)) {
+      console.warn('[GameBootstrap] Cannot start build phase from current state');
+      return;
+    }
     this.stateMachine.transition(GameState.BUILD_PHASE);
     this.buildPhaseTimer = BUILD_PHASE_DURATION;
     this.hudController.setTimerVisible(true);
@@ -262,6 +273,11 @@ export class GameBootstrap {
   }
 
   onUpdate(dt) {
+    // No updates if game hasn't started
+    if (!this._gameStarted) {
+      return;
+    }
+    
     // No updates during DEFEAT
     if (this.stateMachine.isInState(GameState.DEFEAT)) {
       return;
@@ -316,6 +332,19 @@ export class GameBootstrap {
 
   _updateHudGold() {
     this.hudController.setGold(this.economyService.gold);
+  }
+
+  /**
+   * Start the game from main menu.
+   */
+  _startGame() {
+    console.log('[GameBootstrap] Starting game...');
+    
+    this._gameStarted = true;
+    this.hudController.hideMainMenu();
+    this._startBuildPhase();
+    
+    console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
   }
 
   /**
