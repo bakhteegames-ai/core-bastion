@@ -1,7 +1,7 @@
 /**
  * HudController
  * Manages HUD display elements.
- * Task 4.1: Main Menu
+ * Task 4.3: Continue with Ad
  */
 export class HudController {
   constructor() {
@@ -18,6 +18,7 @@ export class HudController {
     this._defeatWaveValue = document.getElementById('defeat-wave-value');
     this._defeatBestValue = document.getElementById('defeat-best-value');
     this._restartBtn = document.getElementById('defeat-restart-btn');
+    this._continueBtn = document.getElementById('defeat-continue-btn');
 
     // Main menu elements
     this._mainMenu = document.getElementById('main-menu');
@@ -33,12 +34,22 @@ export class HudController {
     this._highWave = 0;
     this._onRestartCallback = null;
     this._onPlayCallback = null;
+    this._onContinueCallback = null;
 
     // Setup restart button
     if (this._restartBtn) {
       this._restartBtn.addEventListener('click', () => {
         if (this._onRestartCallback) {
           this._onRestartCallback();
+        }
+      });
+    }
+
+    // Setup continue button
+    if (this._continueBtn) {
+      this._continueBtn.addEventListener('click', () => {
+        if (this._onContinueCallback) {
+          this._onContinueCallback();
         }
       });
     }
@@ -188,6 +199,14 @@ export class HudController {
    */
   setOnPlay(callback) {
     this._onPlayCallback = callback;
+  }
+
+  /**
+   * Set callback for continue button.
+   * @param {Function} callback
+   */
+  setOnContinue(callback) {
+    this._onContinueCallback = callback;
   }
 
   /**

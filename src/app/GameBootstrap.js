@@ -38,6 +38,9 @@ export class GameBootstrap {
     
     // Game started flag
     this._gameStarted = false;
+    
+    // Continue used flag
+    this._continueUsed = false;
   }
 
   init() {
@@ -111,6 +114,11 @@ export class GameBootstrap {
     // Setup play callback
     this.hudController.setOnPlay(() => {
       this._startGame();
+    });
+
+    // Setup continue callback
+    this.hudController.setOnContinue(() => {
+      this._continueGame();
     });
 
     this._updateHud();
@@ -341,10 +349,45 @@ export class GameBootstrap {
     console.log('[GameBootstrap] Starting game...');
     
     this._gameStarted = true;
+    this._continueUsed = false;
     this.hudController.hideMainMenu();
     this._startBuildPhase();
     
     console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
+  }
+
+  /**
+   * Continue the game after watching ad.
+   * Restores some HP and returns to build phase.
+   */
+  _continueGame() {
+    // Only allow one continue per game
+    if (this._continueUsed) {
+      console.log('[GameBootstrap] Continue already used');
+      return;
+    }
+
+    console.log('[GameBootstrap] Continuing game...');
+    
+    this._continueUsed = true;
+    
+    // Hide defeat screen
+    this.hudController.hideDefeat();
+    
+    // Restore HP (5 HP or half of max, whichever is greater)
+    const restoreAmount = Math.max(5, Math.floor(BASE_MAX_HP / 2));
+    this.baseHealth.restore(restoreAmount);
+    this._updateHudHP();
+    
+    // Create new state machine and transition to READY then BUILD_PHASE
+    this.stateMachine = new GameStateMachine();
+    this.stateMachine.initialize(); // BOOT state
+    this.stateMachine.transition(GameState.READY);
+    
+    // Start build phase
+    this._startBuildPhase();
+    
+    console.log(`[GameBootstrap] Continued! Restored ${restoreAmount} HP`);
   }
 
   /**
@@ -382,6 +425,9 @@ export class GameBootstrap {
     this.stateMachine = new GameStateMachine();
     this.stateMachine.initialize(); // BOOT state
     this.stateMachine.transition(GameState.READY);
+
+    // Reset continue flag
+    this._continueUsed = false;
 
     // Update HUD
     this._updateHud();

@@ -144,6 +144,18 @@
       transform: scale(1.05);
       box-shadow: 0 4px 20px rgba(78, 205, 196, 0.4);
     }
+    .defeat-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    .defeat-btn-secondary {
+      background: linear-gradient(135deg, #666, #444);
+    }
+    .defeat-btn-secondary:hover {
+      box-shadow: 0 4px 20px rgba(100, 100, 100, 0.4);
+    }
     #main-menu {
       position: absolute;
       top: 0;
@@ -231,7 +243,10 @@
     <div class="defeat-title">Defeat</div>
     <div class="defeat-wave">Wave: <span id="defeat-wave-value">1</span></div>
     <div class="defeat-best">Best: <span id="defeat-best-value">0</span></div>
-    <button class="defeat-btn" id="defeat-restart-btn">Restart</button>
+    <div class="defeat-buttons">
+      <button class="defeat-btn" id="defeat-continue-btn">Continue (Ad)</button>
+      <button class="defeat-btn defeat-btn-secondary" id="defeat-restart-btn">Restart</button>
+    </div>
   </div>
   <div id="main-menu">
     <div class="menu-title">Core Bastion</div>
