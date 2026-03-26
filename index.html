@@ -4,14 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Core Bastion</title>
-  
+
   <!-- Yandex Games meta tags -->
   <meta name="yandex-games" content="enabled">
-  <meta name="viewport2" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  
+
   <!-- Prevent scroll bounce on iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  
+
   <style>
     * {
       margin: 0;
@@ -64,6 +63,11 @@
       font-size: 24px;
       font-weight: bold;
     }
+    .hud-sub {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
     .hud-gold .hud-value {
       color: #ffd700;
     }
@@ -82,9 +86,8 @@
       flex-direction: column;
       gap: 4px;
     }
-    .hud-wave-panel .hud-sub {
-      font-size: 12px;
-      color: #888;
+    .hud-hidden {
+      display: none;
     }
     .hud-timer {
       position: absolute;
@@ -98,9 +101,6 @@
     }
     .hud-timer .hud-value {
       font-size: 36px;
-    }
-    .hud-hidden {
-      display: none;
     }
     #defeat-screen {
       position: absolute;
@@ -222,46 +222,55 @@
 </head>
 <body>
   <canvas id="application-canvas"></canvas>
+
+  <!-- HUD Overlay -->
   <div id="hud">
     <div class="hud-top">
       <div class="hud-panel hud-wave hud-wave-panel">
         <div>
-          <div class="hud-label">Wave</div>
+          <div class="hud-label" data-i18n="WAVE">Wave</div>
           <div class="hud-value" id="hud-wave-value">1</div>
         </div>
         <div class="hud-sub">Best: <span id="hud-highwave-value">0</span></div>
       </div>
       <div class="hud-panel hud-hp">
-        <div class="hud-label">Base HP</div>
+        <div class="hud-label" data-i18n="BASE_HP">Base HP</div>
         <div class="hud-value" id="hud-hp-value">10/10</div>
       </div>
       <div class="hud-panel hud-gold">
-        <div class="hud-label">Gold</div>
+        <div class="hud-label" data-i18n="GOLD">Gold</div>
         <div class="hud-value" id="hud-gold-value">100</div>
       </div>
     </div>
+
+    <!-- Build Phase Timer -->
     <div class="hud-timer hud-hidden" id="hud-timer">
       <div class="hud-panel">
-        <div class="hud-label">Build Phase</div>
+        <div class="hud-label" data-i18n="BUILD_PHASE">Build Phase</div>
         <div class="hud-value" id="hud-timer-value">3.0</div>
       </div>
     </div>
   </div>
+
+  <!-- Defeat Screen -->
   <div id="defeat-screen" class="hidden">
-    <div class="defeat-title">Defeat</div>
+    <div class="defeat-title" data-i18n="DEFEAT">Defeat</div>
     <div class="defeat-wave">Wave: <span id="defeat-wave-value">1</span></div>
     <div class="defeat-best">Best: <span id="defeat-best-value">0</span></div>
     <div class="defeat-buttons">
-      <button class="defeat-btn" id="defeat-continue-btn">Continue (Ad)</button>
-      <button class="defeat-btn defeat-btn-secondary" id="defeat-restart-btn">Restart</button>
+      <button class="defeat-btn" id="defeat-continue-btn" data-i18n="CONTINUE_AD">Continue (Ad)</button>
+      <button class="defeat-btn defeat-btn-secondary" id="defeat-restart-btn" data-i18n="RESTART">Restart</button>
     </div>
   </div>
+
+  <!-- Main Menu -->
   <div id="main-menu">
     <div class="menu-title">Core Bastion</div>
-    <div class="menu-subtitle">Tower Defense</div>
+    <div class="menu-subtitle" data-i18n="SUBTITLE">Tower Defense</div>
     <div class="menu-best">Best Wave: <span id="menu-best-value">0</span></div>
-    <button class="menu-btn" id="menu-play-btn">Play</button>
+    <button class="menu-btn" id="menu-play-btn" data-i18n="PLAY">Play</button>
   </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

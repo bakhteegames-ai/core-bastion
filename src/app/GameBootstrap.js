@@ -10,7 +10,7 @@ import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
 import { SaveService } from '../save/SaveService.js';
 import { AudioService } from '../audio/AudioService.js';
-import { YandexBridge } from '../platform/YandexBridge.js';
+import { createPlatformBridge } from '../platform/PlatformBridge.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
@@ -105,17 +105,31 @@ export class GameBootstrap {
     // Initialize HUD controller
     this.hudController = new HudController();
 
-    // Initialize save service
+    // Initialize save service (will be connected to platform bridge)
     this.saveService = new SaveService();
-    this.hudController.setHighWave(this.saveService.highWave);
 
     // Initialize audio service
     this.audioService = new AudioService();
 
-    // Initialize Yandex bridge
-    this.yandexBridge = new YandexBridge();
-    this.yandexBridge.init().then(() => {
-      console.log('[GameBootstrap] Yandex bridge ready');
+    // Initialize platform bridge (auto-detects Yandex vs local)
+    this.platformBridge = null;
+    createPlatformBridge().then(async (bridge) => {
+      this.platformBridge = bridge;
+      await bridge.init();
+      
+      // Set UI language from platform
+      const lang = bridge.getLanguage();
+      this.hudController.setLanguage(lang);
+      
+      // Connect save service to platform bridge for cloud storage
+      this.saveService.setPlatformBridge(bridge);
+      await this.saveService.initialize();
+      
+      // Update HUD with loaded bestWave
+      this.hudController.setHighWave(this.saveService.bestWave);
+      this.hudController.showMainMenu(this.saveService.bestWave);
+      
+      console.log(`[GameBootstrap] Platform bridge ready (lang: ${lang})`);
     });
 
     // Setup restart callback
@@ -146,8 +160,8 @@ export class GameBootstrap {
     this.app.on('update', this.onUpdate, this);
     this.app.start();
 
-    // Show main menu instead of starting game immediately
-    this.hudController.showMainMenu(this.saveService.highWave);
+    // Main menu will be shown after platform bridge initializes
+    // (see async initialization block above)
 
     console.log('GameBootstrap initialized');
   }
@@ -200,18 +214,91 @@ export class GameBootstrap {
     const camera = this.sceneFactory.getCamera();
     if (!camera) return;
 
+    // Normalize coordinates to 0-1 range
     const x = event.x / this.canvas.clientWidth;
     const y = event.y / this.canvas.clientHeight;
 
+    // Get ray from camera through click point
     const from = camera.camera.screenToWorld(x, y, camera.camera.nearClip);
     const to = camera.camera.screenToWorld(x, y, camera.camera.farClip);
 
-    // Raycast to find build slots
-    const results = this.app.systems.rigidbody.raycastFirst(from, to);
+    // Calculate ray direction
+    const dir = new pc.Vec3();
+    dir.sub2(to, from).normalize();
 
-    if (results && results.entity && results.entity.slotId) {
-      this._onBuildSlotClicked(results.entity.slotId, results.entity);
+    // Intersect with ground plane (y = 0.15, slot height)
+    const planeY = 0.15;
+    const worldPos = this._rayPlaneIntersection(from, dir, planeY);
+
+    if (!worldPos) return;
+
+    // Find nearest build slot within click radius
+    const hitSlot = this._findNearestSlot(worldPos, 2.0);
+
+    if (hitSlot) {
+      const slotEntity = this.sceneFactory.getBuildSlotMarkers().find(
+        m => m.slotId === hitSlot.id
+      );
+      if (slotEntity) {
+        this._onBuildSlotClicked(hitSlot.id, slotEntity);
+      }
     }
+  }
+
+  /**
+   * Calculate ray-plane intersection.
+   * @param {pc.Vec3} origin - Ray origin
+   * @param {pc.Vec3} dir - Ray direction (normalized)
+   * @param {number} planeY - Y coordinate of the horizontal plane
+   * @returns {pc.Vec3|null} - Intersection point or null
+   */
+  _rayPlaneIntersection(origin, dir, planeY) {
+    // Ray: P = origin + t * dir
+    // Plane: y = planeY
+    // Solve: origin.y + t * dir.y = planeY
+    if (Math.abs(dir.y) < 0.0001) return null; // Ray parallel to plane
+
+    const t = (planeY - origin.y) / dir.y;
+    if (t < 0) return null; // Intersection behind camera
+
+    const result = new pc.Vec3();
+    result.x = origin.x + t * dir.x;
+    result.y = planeY;
+    result.z = origin.z + t * dir.z;
+
+    return result;
+  }
+
+  /**
+   * Find the nearest build slot within radius.
+   * @param {pc.Vec3} worldPos - World position to check
+   * @param {number} radius - Click radius
+   * @returns {object|null} - Slot data or null
+   */
+  _findNearestSlot(worldPos, radius) {
+    const slots = this.sceneFactory.getBuildSlotMarkers();
+    let nearest = null;
+    let minDist = radius;
+
+    for (const slotEntity of slots) {
+      const slotId = slotEntity.slotId;
+      if (!slotId) continue;
+
+      // Skip occupied slots
+      if (this.sceneFactory.isSlotOccupied(slotId)) continue;
+
+      const slotPos = slotEntity.getPosition();
+      const dx = worldPos.x - slotPos.x;
+      const dz = worldPos.z - slotPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = { id: slotId, entity: slotEntity };
+      }
+    }
+
+    return nearest;
   }
 
   _onBuildSlotClicked(slotId, entity) {
@@ -281,12 +368,13 @@ export class GameBootstrap {
     this.audioService.playWaveStart();
   }
 
-  _onWaveComplete(waveNumber) {
+  async _onWaveComplete(waveNumber) {
     console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
     this.audioService.playWaveComplete();
-    // Update high wave
-    if (this.saveService.updateHighWave(waveNumber)) {
-      this.hudController.setHighWave(this.saveService.highWave);
+    // Update best wave if new record
+    const newRecord = await this.saveService.updateBestWave(waveNumber);
+    if (newRecord) {
+      this.hudController.setHighWave(this.saveService.bestWave);
     }
     // Transition back to BUILD_PHASE for next wave
     this._startBuildPhase();
@@ -372,6 +460,7 @@ export class GameBootstrap {
     
     this._gameStarted = true;
     this._continueUsed = false;
+    this.hudController.showContinueButton();
     this.hudController.hideMainMenu();
     this._startBuildPhase();
     
@@ -380,53 +469,86 @@ export class GameBootstrap {
 
   /**
    * Continue the game after watching ad.
-   * Restores some HP and returns to build phase.
+   * Follows exact state machine spec: DEFEAT → AD_PAUSED → WAVE_ACTIVE
    */
   async _continueGame() {
-    // Only allow one continue per game
+    // Only allow one continue per game session
     if (this._continueUsed) {
-      console.log('[GameBootstrap] Continue already used');
+      console.log('[GameBootstrap] Continue already used this session');
       return;
     }
 
-    console.log('[GameBootstrap] Showing ad for continue...');
+    // Transition to AD_PAUSED state (DEFEAT → AD_PAUSED per §16.3)
+    if (!this.stateMachine.transition(GameState.AD_PAUSED)) {
+      console.error('[GameBootstrap] Failed to enter AD_PAUSED state');
+      return;
+    }
+
+    console.log('[GameBootstrap] Entered AD_PAUSED, showing ad...');
+
+    // Pause and mute game for ad compliance
+    this._pauseForAd();
 
     // Show rewarded ad
-    const rewarded = await this.yandexBridge.showRewardedAd();
+    const rewarded = await this.platformBridge.showRewardedAd();
+
+    // Resume game after ad
+    this._resumeAfterAd();
 
     if (!rewarded) {
-      console.log('[GameBootstrap] Ad not completed or not available');
+      // Ad not completed - return to DEFEAT state (AD_PAUSED → DEFEAT per §16.3)
+      console.log('[GameBootstrap] Ad not completed, returning to DEFEAT');
+      this.stateMachine.transition(GameState.DEFEAT);
       return;
     }
 
     console.log('[GameBootstrap] Ad watched, continuing game...');
 
+    // Mark continue as used
     this._continueUsed = true;
+
+    // Hide continue button (one use per session)
+    this.hudController.hideContinueButton();
 
     // Hide defeat screen
     this.hudController.hideDefeat();
 
-    // Restore HP (5 HP or half of max, whichever is greater)
-    const restoreAmount = Math.max(5, Math.floor(BASE_MAX_HP / 2));
-    this.baseHealth.restore(restoreAmount);
+    // Restore HP to max (full restore per continue spec)
+    this.baseHealth.reset();
     this._updateHudHP();
 
-    // Create new state machine and transition to READY then BUILD_PHASE
-    this.stateMachine = new GameStateMachine();
-    this.stateMachine.initialize(); // BOOT state
-    this.stateMachine.transition(GameState.READY);
-
-    // Start build phase
+    // Transition to WAVE_ACTIVE (AD_PAUSED → WAVE_ACTIVE per §16.3)
+    this.stateMachine.transition(GameState.WAVE_ACTIVE);
+    
+    // Continue from current wave (start build phase for next wave)
     this._startBuildPhase();
 
-    console.log(`[GameBootstrap] Continued! Restored ${restoreAmount} HP`);
+    console.log('[GameBootstrap] Continued! HP restored to full');
   }
 
   /**
    * Restart the game after defeat.
+   * Follows state machine spec: DEFEAT → BOOT → READY → BUILD_PHASE
+   * Shows interstitial ad before restart (per session rules).
    */
-  _restartGame() {
+  async _restartGame() {
     console.log('[GameBootstrap] Restarting game...');
+
+    // Transition to BOOT state (DEFEAT → BOOT per §16.3)
+    if (!this.stateMachine.transition(GameState.BOOT)) {
+      console.error('[GameBootstrap] Failed to transition to BOOT state');
+      return;
+    }
+
+    // Pause and mute game for ad compliance
+    this._pauseForAd();
+
+    // Show interstitial ad before restart
+    console.log('[GameBootstrap] Showing interstitial ad...');
+    await this.platformBridge.showFullscreenAd();
+
+    // Resume game after ad
+    this._resumeAfterAd();
 
     // Hide defeat screen
     this.hudController.hideDefeat();
@@ -453,13 +575,12 @@ export class GameBootstrap {
     // Reset economy
     this.economyService.reset(STARTING_GOLD);
 
-    // Reset state machine
-    this.stateMachine = new GameStateMachine();
-    this.stateMachine.initialize(); // BOOT state
+    // Transition BOOT → READY → BUILD_PHASE
     this.stateMachine.transition(GameState.READY);
 
-    // Reset continue flag
+    // Reset continue flag and show button for new session
     this._continueUsed = false;
+    this.hudController.showContinueButton();
 
     // Update HUD
     this._updateHud();
@@ -468,5 +589,33 @@ export class GameBootstrap {
     this._startBuildPhase();
 
     console.log('[GameBootstrap] Game restarted');
+  }
+
+  /**
+   * Pause game for ad playback.
+   * Mutes audio and pauses game systems.
+   */
+  _pauseForAd() {
+    console.log('[GameBootstrap] Pausing for ad...');
+    
+    // Mute audio
+    if (this.audioService) {
+      this.audioService.mute();
+      this.audioService.pause();
+    }
+  }
+
+  /**
+   * Resume game after ad playback.
+   * Unmutes audio and resumes game systems.
+   */
+  _resumeAfterAd() {
+    console.log('[GameBootstrap] Resuming after ad...');
+    
+    // Unmute audio
+    if (this.audioService) {
+      this.audioService.resume();
+      this.audioService.unmute();
+    }
   }
 }

@@ -1,20 +1,35 @@
 /**
  * HudController
- * Manages HUD display elements.
+ * Manages HUD display elements with localization support.
  * Task 4.3: Continue with Ad
  */
+
+import { getString } from './strings.js';
+
 export class HudController {
   constructor() {
+    // Localization
+    this._lang = 'ru'; // Default to Russian
+
     // Cache DOM elements
     this._waveValue = document.getElementById('hud-wave-value');
     this._hpValue = document.getElementById('hud-hp-value');
     this._goldValue = document.getElementById('hud-gold-value');
     this._timerContainer = document.getElementById('hud-timer');
     this._timerValue = document.getElementById('hud-timer-value');
+    this._timerLabel = document.querySelector('#hud-timer .hud-label');
     this._highWaveValue = document.getElementById('hud-highwave-value');
+
+    // HUD labels
+    this._waveLabel = document.querySelector('.hud-wave .hud-label');
+    this._hpLabel = document.querySelector('.hud-hp .hud-label');
+    this._goldLabel = document.querySelector('.hud-gold .hud-label');
 
     // Defeat screen elements
     this._defeatScreen = document.getElementById('defeat-screen');
+    this._defeatTitle = document.querySelector('.defeat-title');
+    this._defeatWaveLabel = document.querySelector('.defeat-wave');
+    this._defeatBestLabel = document.querySelector('.defeat-best');
     this._defeatWaveValue = document.getElementById('defeat-wave-value');
     this._defeatBestValue = document.getElementById('defeat-best-value');
     this._restartBtn = document.getElementById('defeat-restart-btn');
@@ -22,6 +37,9 @@ export class HudController {
 
     // Main menu elements
     this._mainMenu = document.getElementById('main-menu');
+    this._menuTitle = document.querySelector('.menu-title');
+    this._menuSubtitle = document.querySelector('.menu-subtitle');
+    this._menuBestLabel = document.querySelector('.menu-best');
     this._menuBestValue = document.getElementById('menu-best-value');
     this._playBtn = document.getElementById('menu-play-btn');
 
@@ -36,7 +54,16 @@ export class HudController {
     this._onPlayCallback = null;
     this._onContinueCallback = null;
 
-    // Setup restart button
+    // Setup button handlers
+    this._setupButtons();
+
+    console.log('[HudController] Initialized');
+  }
+
+  /**
+   * Setup button click handlers.
+   */
+  _setupButtons() {
     if (this._restartBtn) {
       this._restartBtn.addEventListener('click', () => {
         if (this._onRestartCallback) {
@@ -45,7 +72,6 @@ export class HudController {
       });
     }
 
-    // Setup continue button
     if (this._continueBtn) {
       this._continueBtn.addEventListener('click', () => {
         if (this._onContinueCallback) {
@@ -54,7 +80,6 @@ export class HudController {
       });
     }
 
-    // Setup play button
     if (this._playBtn) {
       this._playBtn.addEventListener('click', () => {
         if (this._onPlayCallback) {
@@ -62,8 +87,75 @@ export class HudController {
         }
       });
     }
+  }
 
-    console.log('[HudController] Initialized');
+  /**
+   * Set the language for UI strings.
+   * @param {string} lang - Language code ('en' or 'ru')
+   */
+  setLanguage(lang) {
+    this._lang = lang;
+    this._updateAllLabels();
+  }
+
+  /**
+   * Update all UI labels with localized strings.
+   */
+  _updateAllLabels() {
+    // HUD labels
+    if (this._waveLabel) {
+      this._waveLabel.textContent = getString('WAVE', this._lang);
+    }
+    if (this._hpLabel) {
+      this._hpLabel.textContent = getString('BASE_HP', this._lang);
+    }
+    if (this._goldLabel) {
+      this._goldLabel.textContent = getString('GOLD', this._lang);
+    }
+    if (this._timerLabel) {
+      this._timerLabel.textContent = getString('BUILD_PHASE', this._lang);
+    }
+
+    // Main menu
+    if (this._menuSubtitle) {
+      this._menuSubtitle.textContent = getString('SUBTITLE', this._lang);
+    }
+    if (this._menuBestLabel) {
+      this._menuBestLabel.innerHTML = `${getString('BEST_WAVE', this._lang)}: <span id="menu-best-value">${this._highWave}</span>`;
+      // Re-cache the value element since we replaced it
+      this._menuBestValue = document.getElementById('menu-best-value');
+    }
+    if (this._playBtn) {
+      this._playBtn.textContent = getString('PLAY', this._lang);
+    }
+
+    // Defeat screen
+    if (this._defeatTitle) {
+      this._defeatTitle.textContent = getString('DEFEAT', this._lang);
+    }
+    if (this._defeatWaveLabel) {
+      this._defeatWaveLabel.innerHTML = `${getString('DEFEAT_WAVE', this._lang)}: <span id="defeat-wave-value">${this._currentWave}</span>`;
+      this._defeatWaveValue = document.getElementById('defeat-wave-value');
+    }
+    if (this._defeatBestLabel) {
+      this._defeatBestLabel.innerHTML = `${getString('DEFEAT_BEST', this._lang)}: <span id="defeat-best-value">${this._highWave}</span>`;
+      this._defeatBestValue = document.getElementById('defeat-best-value');
+    }
+    if (this._continueBtn) {
+      this._continueBtn.textContent = getString('CONTINUE_AD', this._lang);
+    }
+    if (this._restartBtn) {
+      this._restartBtn.textContent = getString('RESTART', this._lang);
+    }
+
+    // Update "Best" label in HUD wave panel
+    const hudSub = document.querySelector('.hud-wave-panel .hud-sub');
+    if (hudSub) {
+      hudSub.innerHTML = `${getString('BEST', this._lang)}: <span id="hud-highwave-value">${this._highWave}</span>`;
+      this._highWaveValue = document.getElementById('hud-highwave-value');
+    }
+
+    console.log(`[HudController] UI labels updated for language: ${this._lang}`);
   }
 
   /**
@@ -122,7 +214,6 @@ export class HudController {
    */
   setTimerValue(seconds) {
     if (this._timerValue) {
-      // Show 1 decimal place
       this._timerValue.textContent = Math.max(0, seconds).toFixed(1);
     }
   }
@@ -214,6 +305,7 @@ export class HudController {
    * @param {number} bestWave - Best wave achieved
    */
   showMainMenu(bestWave) {
+    this._highWave = bestWave;
     if (this._menuBestValue) {
       this._menuBestValue.textContent = bestWave;
     }
@@ -228,6 +320,24 @@ export class HudController {
   hideMainMenu() {
     if (this._mainMenu) {
       this._mainMenu.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Hide the continue button (after one use per session).
+   */
+  hideContinueButton() {
+    if (this._continueBtn) {
+      this._continueBtn.style.display = 'none';
+    }
+  }
+
+  /**
+   * Show the continue button (for new game session).
+   */
+  showContinueButton() {
+    if (this._continueBtn) {
+      this._continueBtn.style.display = '';
     }
   }
 }

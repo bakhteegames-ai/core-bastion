@@ -1,19 +1,18 @@
 /**
  * YandexBridge
  * Integration with Yandex Games SDK.
- * Task 6.1: Yandex SDK Integration
+ * Implements PlatformBridge interface for Yandex Games platform.
  */
 
-export class YandexBridge {
+import { PlatformBridge } from './PlatformBridge.js';
+
+export class YandexBridge extends PlatformBridge {
   constructor() {
-    this._initialized = false;
+    super();
     this._sdk = null;
     this._player = null;
     this._ysdk = null;
-
-    // Callbacks
-    this._onReadyCallback = null;
-    this._onErrorCallback = null;
+    this._storageKey = 'core_bastion_mvp';
   }
 
   /**
@@ -44,9 +43,6 @@ export class YandexBridge {
     if (!YandexBridge.isYandexEnvironment()) {
       console.log('[YandexBridge] Not in Yandex environment, using stub mode');
       this._initialized = true;
-      if (this._onReadyCallback) {
-        this._onReadyCallback(null);
-      }
       return true;
     }
 
@@ -60,18 +56,9 @@ export class YandexBridge {
       console.log('[YandexBridge] Yandex SDK initialized successfully');
       this._initialized = true;
 
-      if (this._onReadyCallback) {
-        this._onReadyCallback(this._ysdk);
-      }
-
       return true;
     } catch (e) {
       console.error('[YandexBridge] Failed to initialize Yandex SDK:', e);
-
-      if (this._onErrorCallback) {
-        this._onErrorCallback(e);
-      }
-
       return false;
     }
   }
@@ -91,35 +78,19 @@ export class YandexBridge {
       script.src = 'https://yandex.ru/games/sdk/v2';
       script.async = true;
       script.onload = () => resolve();
-      script.onerror = (e) => reject(new Error('Failed to load Yandex SDK script'));
+      script.onerror = () => reject(new Error('Failed to load Yandex SDK script'));
       document.head.appendChild(script);
     });
   }
 
   /**
-   * Set callback for when SDK is ready.
-   * @param {Function} callback
-   */
-  onReady(callback) {
-    this._onReadyCallback = callback;
-  }
-
-  /**
-   * Set callback for SDK errors.
-   * @param {Function} callback
-   */
-  onError(callback) {
-    this._onErrorCallback = callback;
-  }
-
-  /**
-   * Initialize player.
-   * @param {object} options - Options for player init
-   * @returns {Promise<object|null>}
+   * Initialize player (optional, for extended features).
+   * @param {Object} options - Options for player init
+   * @returns {Promise<Object|null>}
    */
   async initPlayer(options = { scopes: false }) {
     if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not initialized, using stub player');
+      console.log('[YandexBridge] SDK not initialized, cannot init player');
       return null;
     }
 
@@ -134,117 +105,35 @@ export class YandexBridge {
   }
 
   /**
-   * Get player info.
-   * @returns {object|null}
-   */
-  get player() {
-    return this._player;
-  }
-
-  /**
-   * Get player name.
-   * @returns {string}
-   */
-  getPlayerName() {
-    if (this._player && this._player.name) {
-      return this._player.name;
-    }
-    return 'Player';
-  }
-
-  /**
-   * Get player avatar URL.
-   * @returns {string|null}
-   */
-  getPlayerAvatar() {
-    if (this._player && this._player.photo) {
-      return this._player.photo;
-    }
-    return null;
-  }
-
-  /**
-   * Save player data.
-   * @param {object} data - Data to save
-   * @param {boolean} flush - Force flush to server
-   * @returns {Promise<boolean>}
-   */
-  async saveData(data, flush = false) {
-    if (!this._player) {
-      console.log('[YandexBridge] No player, saving to localStorage');
-      try {
-        localStorage.setItem('yandex_game_data', JSON.stringify(data));
-        return true;
-      } catch (e) {
-        console.error('[YandexBridge] Failed to save to localStorage:', e);
-        return false;
-      }
-    }
-
-    try {
-      await this._player.setData(data, flush);
-      console.log('[YandexBridge] Data saved');
-      return true;
-    } catch (e) {
-      console.error('[YandexBridge] Failed to save data:', e);
-      return false;
-    }
-  }
-
-  /**
-   * Load player data.
-   * @returns {Promise<object|null>}
-   */
-  async loadData() {
-    if (!this._player) {
-      console.log('[YandexBridge] No player, loading from localStorage');
-      try {
-        const data = localStorage.getItem('yandex_game_data');
-        return data ? JSON.parse(data) : null;
-      } catch (e) {
-        console.error('[YandexBridge] Failed to load from localStorage:', e);
-        return null;
-      }
-    }
-
-    try {
-      const data = await this._player.getData();
-      console.log('[YandexBridge] Data loaded');
-      return data;
-    } catch (e) {
-      console.error('[YandexBridge] Failed to load data:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Show fullscreen ad.
+   * Show fullscreen/interstitial ad.
    * @returns {Promise<boolean>}
    */
   async showFullscreenAd() {
     if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not available, skipping ad');
+      console.log('[YandexBridge] SDK not available, skipping fullscreen ad');
       return true;
     }
 
-    try {
-      await this._ysdk.adv.showFullscreenAdv({
+    return new Promise((resolve) => {
+      this._ysdk.adv.showFullscreenAdv({
         callbacks: {
           onOpen: () => console.log('[YandexBridge] Fullscreen ad opened'),
-          onClose: (wasShown) => console.log('[YandexBridge] Fullscreen ad closed, shown:', wasShown),
-          onError: (e) => console.error('[YandexBridge] Fullscreen ad error:', e)
+          onClose: (wasShown) => {
+            console.log('[YandexBridge] Fullscreen ad closed, shown:', wasShown);
+            resolve(true);
+          },
+          onError: (e) => {
+            console.error('[YandexBridge] Fullscreen ad error:', e);
+            resolve(true); // Resolve true to not block game flow
+          }
         }
       });
-      return true;
-    } catch (e) {
-      console.error('[YandexBridge] Failed to show fullscreen ad:', e);
-      return false;
-    }
+    });
   }
 
   /**
-   * Show rewarded ad.
-   * @returns {Promise<boolean>}
+   * Show rewarded video ad.
+   * @returns {Promise<boolean>} - true if reward was granted
    */
   async showRewardedAd() {
     if (!this._ysdk) {
@@ -257,11 +146,11 @@ export class YandexBridge {
         callbacks: {
           onOpen: () => console.log('[YandexBridge] Rewarded ad opened'),
           onRewarded: () => {
-            console.log('[YandexBridge] Rewarded ad rewarded');
+            console.log('[YandexBridge] Rewarded ad granted');
             resolve(true);
           },
           onClose: () => {
-            console.log('[YandexBridge] Rewarded ad closed');
+            console.log('[YandexBridge] Rewarded ad closed without reward');
             resolve(false);
           },
           onError: (e) => {
@@ -274,40 +163,7 @@ export class YandexBridge {
   }
 
   /**
-   * Show sticky banner (if supported).
-   */
-  async showStickyBanner() {
-    if (!this._ysdk) {
-      console.log('[YandexBridge] SDK not available, skipping banner');
-      return;
-    }
-
-    try {
-      await this._ysdk.adv.showBannerAdv();
-      console.log('[YandexBridge] Banner ad shown');
-    } catch (e) {
-      console.error('[YandexBridge] Failed to show banner:', e);
-    }
-  }
-
-  /**
-   * Hide sticky banner.
-   */
-  async hideStickyBanner() {
-    if (!this._ysdk) {
-      return;
-    }
-
-    try {
-      await this._ysdk.adv.hideBannerAdv();
-      console.log('[YandexBridge] Banner ad hidden');
-    } catch (e) {
-      console.error('[YandexBridge] Failed to hide banner:', e);
-    }
-  }
-
-  /**
-   * Get current language.
+   * Get current platform language.
    * @returns {string}
    */
   getLanguage() {
@@ -318,7 +174,67 @@ export class YandexBridge {
   }
 
   /**
-   * Get device type.
+   * Save data to platform storage.
+   * Falls back to localStorage if player is not initialized.
+   * @param {Object} data - Data to save
+   * @returns {Promise<boolean>}
+   */
+  async saveData(data) {
+    // Try player data first (Yandex cloud storage)
+    if (this._player) {
+      try {
+        await this._player.setData(data, false);
+        console.log('[YandexBridge] Data saved to player storage');
+        return true;
+      } catch (e) {
+        console.error('[YandexBridge] Failed to save to player storage:', e);
+      }
+    }
+
+    // Fallback to localStorage
+    try {
+      localStorage.setItem(this._storageKey, JSON.stringify(data));
+      console.log('[YandexBridge] Data saved to localStorage');
+      return true;
+    } catch (e) {
+      console.error('[YandexBridge] Failed to save to localStorage:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Load data from platform storage.
+   * Falls back to localStorage if player is not initialized.
+   * @returns {Promise<Object|null>}
+   */
+  async loadData() {
+    // Try player data first (Yandex cloud storage)
+    if (this._player) {
+      try {
+        const data = await this._player.getData();
+        console.log('[YandexBridge] Data loaded from player storage');
+        return data;
+      } catch (e) {
+        console.error('[YandexBridge] Failed to load from player storage:', e);
+      }
+    }
+
+    // Fallback to localStorage
+    try {
+      const data = localStorage.getItem(this._storageKey);
+      if (data) {
+        console.log('[YandexBridge] Data loaded from localStorage');
+        return JSON.parse(data);
+      }
+      return null;
+    } catch (e) {
+      console.error('[YandexBridge] Failed to load from localStorage:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Get device type from SDK.
    * @returns {string}
    */
   getDeviceType() {
@@ -329,18 +245,40 @@ export class YandexBridge {
   }
 
   /**
-   * Check if SDK is initialized.
-   * @returns {boolean}
+   * Get player name (if available).
+   * @returns {string}
    */
-  get isInitialized() {
-    return this._initialized;
+  getPlayerName() {
+    if (this._player && this._player.name) {
+      return this._player.name;
+    }
+    return 'Player';
+  }
+
+  /**
+   * Get player avatar URL (if available).
+   * @returns {string|null}
+   */
+  getPlayerAvatar() {
+    if (this._player && this._player.photo) {
+      return this._player.photo;
+    }
+    return null;
   }
 
   /**
    * Get raw SDK instance.
-   * @returns {object|null}
+   * @returns {Object|null}
    */
   get sdk() {
     return this._ysdk;
+  }
+
+  /**
+   * Get player object.
+   * @returns {Object|null}
+   */
+  get player() {
+    return this._player;
   }
 }

@@ -339,7 +339,8 @@ export class SceneFactory {
   }
 
   /**
-   * Create exactly two build slot markers with collision for click detection.
+   * Create exactly two build slot markers.
+   * Click detection is handled via custom ray-plane intersection in GameBootstrap.
    */
   createBuildSlotMarkers() {
     BUILD_SLOTS.forEach((slot) => {
@@ -348,13 +349,6 @@ export class SceneFactory {
 
       marker.addComponent('render', {
         type: 'cylinder'
-      });
-
-      // Collision component for raycast detection
-      marker.addComponent('collision', {
-        type: 'cylinder',
-        radius: 1,
-        height: 0.3
       });
 
       marker.setLocalPosition(slot.x, 0.15, slot.z);

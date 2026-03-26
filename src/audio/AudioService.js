@@ -11,6 +11,8 @@ export class AudioService {
   constructor() {
     this._enabled = true;
     this._volume = 1.0;
+    this._muted = false;
+    this._previousVolume = 1.0;
     this._audioContext = null;
 
     // Sound effect names
@@ -50,7 +52,7 @@ export class AudioService {
    * @param {object} options - Optional parameters (volume, pitch, etc.)
    */
   play(soundName, options = {}) {
-    if (!this._enabled) return;
+    if (!this._enabled || this._muted) return;
 
     // Stub: just log the sound play
     const volume = options.volume ?? 1.0;
@@ -127,6 +129,38 @@ export class AudioService {
   }
 
   /**
+   * Mute all audio (for ad playback).
+   * Saves current volume for restoration.
+   */
+  mute() {
+    if (!this._muted) {
+      this._previousVolume = this._volume;
+      this._muted = true;
+      console.log('[AudioService] Audio muted');
+    }
+  }
+
+  /**
+   * Unmute audio (after ad playback).
+   * Restores previous volume.
+   */
+  unmute() {
+    if (this._muted) {
+      this._muted = false;
+      this._volume = this._previousVolume;
+      console.log('[AudioService] Audio unmuted');
+    }
+  }
+
+  /**
+   * Check if audio is muted.
+   * @returns {boolean}
+   */
+  get isMuted() {
+    return this._muted;
+  }
+
+  /**
    * Set master volume.
    * @param {number} volume - Volume level (0.0 to 1.0)
    */
@@ -166,6 +200,26 @@ export class AudioService {
   stopAll() {
     console.log('[AudioService] Stopping all sounds');
     // Stub: no-op
+  }
+
+  /**
+   * Pause audio context (for ad playback).
+   */
+  pause() {
+    if (this._audioContext && this._audioContext.state === 'running') {
+      this._audioContext.suspend();
+      console.log('[AudioService] Audio context paused');
+    }
+  }
+
+  /**
+   * Resume audio context (after ad playback).
+   */
+  resume() {
+    if (this._audioContext && this._audioContext.state === 'suspended') {
+      this._audioContext.resume();
+      console.log('[AudioService] Audio context resumed');
+    }
   }
 
   /**
