@@ -12,6 +12,7 @@ import {
  * SceneFactory
  * Creates battlefield, camera, and visual markers via code.
  * Task 1.3: Battlefield and Camera
+ * Task 2.2: Build slot click detection
  */
 export class SceneFactory {
   constructor(app) {
@@ -22,6 +23,7 @@ export class SceneFactory {
     this.spawnMarker = null;
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
+    this.buildSlotStates = {}; // Track occupied state by slot id
   }
 
   /**
@@ -210,14 +212,21 @@ export class SceneFactory {
   }
 
   /**
-   * Create exactly two build slot markers.
+   * Create exactly two build slot markers with collision for click detection.
    */
   createBuildSlotMarkers() {
     BUILD_SLOTS.forEach((slot) => {
       const marker = new pc.Entity(`BuildSlot_${slot.id}`);
 
+      // Render component
       marker.addComponent('render', {
         type: 'box'
+      });
+
+      // Collision component for raycast detection
+      marker.addComponent('collision', {
+        type: 'box',
+        halfExtents: new pc.Vec3(0.75, 0.1, 0.75)
       });
 
       marker.setLocalPosition(slot.x, 0.1, slot.z);
@@ -230,8 +239,75 @@ export class SceneFactory {
       material.update();
       marker.render.material = material;
 
+      // Store slot id on entity for identification
+      marker.slotId = slot.id;
+      marker.slotData = slot;
+
       this.app.root.addChild(marker);
       this.buildSlotMarkers.push(marker);
+
+      // Initialize slot state
+      this.buildSlotStates[slot.id] = {
+        occupied: false,
+        entity: marker
+      };
     });
+  }
+
+  /**
+   * Get camera entity for raycast.
+   * @returns {pc.Entity}
+   */
+  getCamera() {
+    return this.camera;
+  }
+
+  /**
+   * Get build slot by id.
+   * @param {string} slotId
+   * @returns {object|null}
+   */
+  getSlotState(slotId) {
+    return this.buildSlotStates[slotId] || null;
+  }
+
+  /**
+   * Mark a slot as occupied.
+   * @param {string} slotId
+   */
+  setSlotOccupied(slotId) {
+    if (this.buildSlotStates[slotId]) {
+      this.buildSlotStates[slotId].occupied = true;
+      console.log(`[SceneFactory] Slot ${slotId} marked as occupied`);
+    }
+  }
+
+  /**
+   * Mark a slot as unoccupied.
+   * @param {string} slotId
+   */
+  setSlotUnoccupied(slotId) {
+    if (this.buildSlotStates[slotId]) {
+      this.buildSlotStates[slotId].occupied = false;
+      console.log(`[SceneFactory] Slot ${slotId} marked as unoccupied`);
+    }
+  }
+
+  /**
+   * Check if a slot is occupied.
+   * @param {string} slotId
+   * @returns {boolean}
+   */
+  isSlotOccupied(slotId) {
+    const state = this.buildSlotStates[slotId];
+    return state ? state.occupied : false;
+  }
+
+  /**
+   * Get all build slot markers.
+   * @returns {pc.Entity[]}
+   */
+  getBuildSlotMarkers() {
+    return this.buildSlotMarkers;
   }
 }

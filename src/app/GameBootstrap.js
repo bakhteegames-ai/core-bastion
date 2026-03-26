@@ -12,6 +12,7 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
  * Task 1.3: Battlefield and camera initialization.
  * Task 1.5: Test enemy movement along waypoints.
  * Task 1.6: Leak damage integration with base health.
+ * Task 2.2: Build slot click detection.
  */
 export class GameBootstrap {
   constructor() {
@@ -21,6 +22,7 @@ export class GameBootstrap {
     this.testEnemy = null;
     this.baseHealth = null;
     this.stateMachine = null;
+    this._buildAttemptCallback = null;
   }
 
   init() {
@@ -56,6 +58,9 @@ export class GameBootstrap {
     this.sceneFactory = new SceneFactory(this.app);
     this.sceneFactory.createBattlefield();
 
+    // Setup build slot click detection
+    this._setupBuildSlotClickDetection();
+
     // Start the update loop
     this.app.on('update', this.onUpdate, this);
 
@@ -66,6 +71,81 @@ export class GameBootstrap {
     this._spawnTestEnemy();
 
     console.log('GameBootstrap initialized - battlefield visible');
+  }
+
+  /**
+   * Setup click detection on build slots.
+   * Task 2.2: Build slot interaction.
+   */
+  _setupBuildSlotClickDetection() {
+    // Mouse click handler
+    this.app.mouse.on(pc.EVENT_MOUSEDOWN, (event) => {
+      if (event.button !== pc.MOUSEBUTTON_LEFT) return;
+      this._handleBuildSlotClick(event);
+    });
+
+    // Touch handler for mobile
+    this.app.touch.on(pc.EVENT_TOUCHSTART, (event) => {
+      if (event.touches.length > 0) {
+        this._handleBuildSlotClick(event.touches[0]);
+      }
+    });
+  }
+
+  /**
+   * Handle click on build slots.
+   */
+  _handleBuildSlotClick(event) {
+    // Only process clicks during BUILD_PHASE (not implemented yet)
+    // For now, allow clicks for testing
+
+    const camera = this.sceneFactory.getCamera();
+    if (!camera) return;
+
+    // Get mouse position in normalized device coordinates
+    const x = event.x / this.canvas.clientWidth;
+    const y = event.y / this.canvas.clientHeight;
+
+    // Create ray from camera through mouse position
+    const from = camera.camera.screenToWorld(x, y, camera.camera.nearClip);
+    const to = camera.camera.screenToWorld(x, y, camera.camera.farClip);
+
+    // Raycast to find build slots
+    const results = this.app.systems.rigidbody.raycastFirst(from, to);
+
+    // Check if we hit a build slot
+    if (results && results.entity) {
+      const entity = results.entity;
+      if (entity.slotId) {
+        this._onBuildSlotClicked(entity.slotId, entity);
+      }
+    }
+  }
+
+  /**
+   * Called when a build slot is clicked.
+   */
+  _onBuildSlotClicked(slotId, entity) {
+    console.log(`[GameBootstrap] Build slot ${slotId} clicked`);
+
+    // Check if slot is occupied
+    if (this.sceneFactory.isSlotOccupied(slotId)) {
+      console.log(`[GameBootstrap] Slot ${slotId} is already occupied`);
+      return;
+    }
+
+    // Trigger build attempt callback if set
+    if (this._buildAttemptCallback) {
+      this._buildAttemptCallback(slotId, entity);
+    }
+  }
+
+  /**
+   * Set callback for build attempts.
+   * @param {Function} callback - Function(slotId, entity)
+   */
+  setBuildAttemptCallback(callback) {
+    this._buildAttemptCallback = callback;
   }
 
   /**
@@ -80,15 +160,10 @@ export class GameBootstrap {
 
   /**
    * Handle enemy reaching the base (leak).
-   * Task 1.6: Apply damage to base.
    */
   _onEnemyLeak(enemy) {
     console.log('[GameBootstrap] Enemy leaked, applying damage to base');
-
-    // Apply leak damage to base
     this.baseHealth.takeDamage(ENEMY_LEAK_DAMAGE);
-
-    // Remove enemy
     this.testEnemy = null;
   }
 
@@ -97,8 +172,6 @@ export class GameBootstrap {
    */
   _onDefeat() {
     console.log('[GameBootstrap] DEFEAT - Base HP reached 0');
-
-    // Transition to DEFEAT state
     this.stateMachine.transition(GameState.DEFEAT);
   }
 
