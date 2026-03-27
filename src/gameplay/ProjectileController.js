@@ -15,6 +15,15 @@ export class ProjectileController {
   constructor(app) {
     this.app = app;
     this.projectiles = [];
+    this._onHitCallback = null; // External callback for hit effects (audio, VFX)
+  }
+
+  /**
+   * Set callback for when a projectile hits.
+   * @param {Function} callback - Function(position, target)
+   */
+  setOnHitCallback(callback) {
+    this._onHitCallback = callback;
   }
 
   /**
@@ -101,6 +110,12 @@ export class ProjectileController {
         // Callback
         if (projectile.onHitCallback) {
           projectile.onHitCallback(target, projectile.damage);
+        }
+        
+        // External hit callback (for audio/VFX)
+        if (this._onHitCallback) {
+          const pos = entity.getLocalPosition();
+          this._onHitCallback({ x: pos.x, y: pos.y, z: pos.z }, target);
         }
 
         this._destroyProjectile(i);

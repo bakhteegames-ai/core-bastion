@@ -11,6 +11,15 @@ export class TowerController {
     this.app = app;
     this.projectileController = projectileController;
     this.towers = []; // Array of tower data objects
+    this._onFireCallback = null; // Callback for audio/VFX when tower fires
+  }
+  
+  /**
+   * Set callback for when a tower fires.
+   * @param {Function} callback - Function(towerPosition)
+   */
+  setOnFireCallback(callback) {
+    this._onFireCallback = callback;
   }
 
   /**
@@ -159,6 +168,11 @@ export class TowerController {
       tower.target,
       tower.onHitCallback
     );
+    
+    // Fire callback for audio
+    if (this._onFireCallback) {
+      this._onFireCallback(tower.position);
+    }
 
     console.log(`[TowerController] Tower on slot ${tower.slotId} fired`);
   }

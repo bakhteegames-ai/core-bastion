@@ -10,6 +10,7 @@ import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
 import { SaveService } from '../save/SaveService.js';
 import { AudioService } from '../audio/AudioService.js';
+import { VFXController } from '../vfx/VFXController.js';
 import { createPlatformBridge } from '../platform/PlatformBridge.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
@@ -35,6 +36,7 @@ export class GameBootstrap {
     this.hudController = null;
     this.saveService = null;
     this.audioService = null;
+    this.vfxController = null;
 
     // Build phase timing
     this.buildPhaseTimer = 0;
@@ -90,9 +92,22 @@ export class GameBootstrap {
 
     // Initialize projectile controller
     this.projectileController = new ProjectileController(this.app);
+    
+    // Set up hit callback for audio/VFX
+    this.projectileController.setOnHitCallback((position, target) => {
+      this.audioService.playEnemyHit();
+      if (this.vfxController) {
+        this.vfxController.createHitEffect(position);
+      }
+    });
 
     // Initialize tower controller
     this.towerController = new TowerController(this.app, this.projectileController);
+    
+    // Set up fire callback for audio
+    this.towerController.setOnFireCallback((position) => {
+      this.audioService.playTowerFire();
+    });
 
     // Initialize wave manager
     this.waveManager = new WaveManager(this.app);
@@ -114,6 +129,9 @@ export class GameBootstrap {
 
     // Initialize audio service
     this.audioService = new AudioService();
+
+    // Initialize VFX controller
+    this.vfxController = new VFXController(this.app);
 
     // Initialize platform bridge (auto-detects Yandex vs local)
     this.platformBridge = null;
@@ -315,6 +333,11 @@ export class GameBootstrap {
       this.towerController.registerTower(towerData);
       this._updateHudGold();
       this.audioService.playBuildTower();
+      
+      // VFX: build effect at slot position
+      if (this.vfxController && towerData.position) {
+        this.vfxController.createBuildEffect(towerData.position);
+      }
     }
   }
 
@@ -344,6 +367,12 @@ export class GameBootstrap {
     this.baseHealth.takeDamage(ENEMY_LEAK_DAMAGE);
     this._updateHudHP();
     this.audioService.playEnemyLeak();
+    
+    // VFX: red flash at base
+    const basePos = this.sceneFactory.baseMarker?.getPosition();
+    if (basePos && this.vfxController) {
+      this.vfxController.createLeakEffect({ x: basePos.x, y: basePos.y + 0.5, z: basePos.z });
+    }
 
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
@@ -360,6 +389,11 @@ export class GameBootstrap {
     this.economyService.addGold(reward);
     this._updateHudGold();
     this.audioService.playEnemyDeath();
+    
+    // VFX: death burst at enemy position
+    if (this.vfxController && enemy.position) {
+      this.vfxController.createDeathEffect(enemy.position);
+    }
 
     const index = this.enemies.indexOf(enemy);
     if (index !== -1) {
@@ -440,6 +474,11 @@ export class GameBootstrap {
 
       // Update projectiles
       this.projectileController.update(dt);
+      
+      // Update VFX
+      if (this.vfxController) {
+        this.vfxController.update(dt);
+      }
     }
   }
 
