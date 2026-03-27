@@ -9,6 +9,8 @@ import { TowerController } from '../gameplay/TowerController.js';
 import { ProjectileController } from '../gameplay/ProjectileController.js';
 import { WaveManager } from '../gameplay/WaveManager.js';
 import { HudController } from '../ui/HudController.js';
+import { TowerPanelController } from '../ui/TowerPanelController.js';
+import { AbilityBarController } from '../ui/AbilityBarController.js';
 import { SaveService } from '../save/SaveService.js';
 import { AudioService } from '../audio/AudioService.js';
 import { VFXController } from '../vfx/VFXController.js';
@@ -16,6 +18,11 @@ import { createPlatformBridge } from '../platform/PlatformBridge.js';
 import { GameStateMachine, GameState } from './GameStateMachine.js';
 import { STARTING_GOLD, BUILD_PHASE_DURATION, BASE_MAX_HP } from './constants.js';
 import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
+
+// New data systems
+import { getAllTowerTypes, getTowerType, getTowerStats } from '../data/towerTypes.js';
+import { getAllEnemyTypes, getEnemyType, getEnemyStats } from '../data/enemyTypes.js';
+import { PurchaseService } from '../gameplay/PurchaseService.js';
 
 /**
  * GameBootstrap
@@ -36,6 +43,8 @@ export class GameBootstrap {
     this.waveManager = null;
     this.stateMachine = null;
     this.hudController = null;
+    this.towerPanelController = null;
+    this.abilityBarController = null;
     this.saveService = null;
     this.audioService = null;
     this.vfxController = null;
@@ -52,6 +61,16 @@ export class GameBootstrap {
     // Session defeat counter (for interstitial scheduling)
     // Reset on page reload, persisted only in memory
     this._sessionDefeatCount = 0;
+
+    // Purchase service for IAP
+    this.purchaseService = null;
+
+    // Selected tower type for building
+    this.selectedTowerType = 'archer';
+    
+    // Gold rush multiplier
+    this._goldRushMultiplier = 1;
+    this._goldRushTimer = 0;
   }
 
   async init() {
@@ -132,6 +151,20 @@ export class GameBootstrap {
     // Initialize HUD controller
     this.hudController = new HudController();
 
+    // Initialize Tower Panel Controller
+    this.towerPanelController = new TowerPanelController({
+      economyService: this.economyService,
+      onTowerSelect: (typeId) => this._onTowerSelect(typeId),
+      onUpgrade: (slotId) => this._onUpgradeTower(slotId),
+      onSell: (slotId) => this._onSellTower(slotId)
+    });
+
+    // Initialize Ability Bar Controller
+    this.abilityBarController = new AbilityBarController({
+      economyService: this.economyService,
+      onUseAbility: (abilityId, ability) => this._onUseAbility(abilityId, ability)
+    });
+
     // Initialize save service (will be connected to platform bridge)
     this.saveService = new SaveService();
 
@@ -150,10 +183,16 @@ export class GameBootstrap {
       // Set UI language from platform
       const lang = bridge.getLanguage();
       this.hudController.setLanguage(lang);
+      this.towerPanelController.setLanguage(lang);
+      this.abilityBarController.setLanguage(lang);
       
       // Connect save service to platform bridge for cloud storage
       this.saveService.setPlatformBridge(bridge);
       await this.saveService.initialize();
+      
+      // Initialize PurchaseService for IAP
+      this.purchaseService = new PurchaseService(bridge, this.economyService);
+      await this.purchaseService.initialize();
       
       // Update HUD with loaded bestWave
       this.hudController.setHighWave(this.saveService.bestWave);
@@ -161,6 +200,17 @@ export class GameBootstrap {
       
       // Signal platform that game is ready for interaction
       await bridge.ready();
+      
+      // Expose game API for UI integration
+      window.__game = {
+        selectTowerType: (type) => this.selectTowerType(type),
+        upgradeTower: (slotId) => this.upgradeTower(slotId),
+        sellTower: (slotId) => this.sellTower(slotId),
+        purchaseService: this.purchaseService,
+        economyService: this.economyService,
+        getTowerTypes: () => getAllTowerTypes(),
+        getEnemyTypes: () => getAllEnemyTypes()
+      };
       
       console.log(`[GameBootstrap] Platform bridge ready (lang: ${lang})`);
     });
@@ -211,6 +261,11 @@ export class GameBootstrap {
     this.buildPhaseTimer = BUILD_PHASE_DURATION;
     this.hudController.setTimerVisible(true);
     this.hudController.setTimerValue(BUILD_PHASE_DURATION);
+    
+    // Show tower panel and abilities bar during build phase
+    this.towerPanelController.show();
+    this.abilityBarController.show();
+    
     console.log(`[GameBootstrap] BUILD_PHASE started (${BUILD_PHASE_DURATION}s)`);
   }
 
@@ -220,6 +275,10 @@ export class GameBootstrap {
   _startWaveActive() {
     this.stateMachine.transition(GameState.WAVE_ACTIVE);
     this.hudController.setTimerVisible(false);
+    
+    // Hide tower panel during wave, keep abilities visible
+    this.towerPanelController.hide();
+    
     this.waveManager.startNextWave();
     console.log('[GameBootstrap] WAVE_ACTIVE started');
   }
@@ -335,10 +394,19 @@ export class GameBootstrap {
   }
 
   _onBuildSlotClicked(slotId, entity) {
-    console.log(`[GameBootstrap] Build slot ${slotId} clicked`);
-    const towerData = this.buildManager.buildTower(slotId, entity);
+    console.log(`[GameBootstrap] Build slot ${slotId} clicked, selected type: ${this.selectedTowerType}`);
+    
+    // Use selected tower type for building
+    const towerData = this.buildManager.buildTower(slotId, entity, this.selectedTowerType);
     if (towerData) {
-      this.towerController.registerTower(towerData);
+      // Register tower with type info
+      this.towerController.registerTower({
+        entity: towerData.entity,
+        slotId: towerData.slotId,
+        position: towerData.position,
+        typeId: towerData.typeId || this.selectedTowerType,
+        level: towerData.level || 1
+      });
       this._updateHudGold();
       this.audioService.playBuildTower();
       
@@ -353,10 +421,15 @@ export class GameBootstrap {
    * Spawn an enemy with wave data.
    */
   _spawnEnemy(enemyData) {
+    // Get enemy type stats if typeId is provided
+    const typeId = enemyData.typeId || 'grunt';
+    const typeStats = getEnemyStats(typeId, this.waveManager.currentWave);
+    
     const enemy = new EnemyAgent(this.app, {
-      hp: enemyData.hp,
-      speed: enemyData.speed,
-      goldReward: enemyData.goldReward,
+      typeId: typeId,
+      hp: enemyData.hp ?? typeStats.hp,
+      speed: enemyData.speed ?? typeStats.speed,
+      goldReward: enemyData.goldReward ?? typeStats.goldReward,
       assetLoader: this.assetLoader
     });
 
@@ -393,7 +466,14 @@ export class GameBootstrap {
   }
 
   _onEnemyDeath(enemy) {
-    const reward = enemy.goldReward;
+    let reward = enemy.goldReward;
+    
+    // Apply gold rush multiplier if active
+    if (this._goldRushMultiplier > 1) {
+      reward = Math.round(reward * this._goldRushMultiplier);
+      console.log(`[GameBootstrap] Gold Rush active! Multiplied reward: ${reward}`);
+    }
+    
     console.log(`[GameBootstrap] Enemy killed, granting ${reward} gold`);
     this.economyService.addGold(reward);
     this._updateHudGold();
@@ -455,6 +535,20 @@ export class GameBootstrap {
     if (this.stateMachine.isInState(GameState.DEFEAT)) {
       return;
     }
+    
+    // Update ability bar cooldowns (always)
+    if (this.abilityBarController) {
+      this.abilityBarController.update(dt);
+    }
+    
+    // Update gold rush timer
+    if (this._goldRushTimer > 0) {
+      this._goldRushTimer -= dt;
+      if (this._goldRushTimer <= 0) {
+        this._goldRushMultiplier = 1;
+        console.log('[GameBootstrap] Gold Rush ended');
+      }
+    }
 
     // BUILD_PHASE: countdown timer
     if (this.stateMachine.isInState(GameState.BUILD_PHASE)) {
@@ -510,6 +604,14 @@ export class GameBootstrap {
 
   _updateHudGold() {
     this.hudController.setGold(this.economyService.gold);
+    
+    // Update affordability in UI controllers
+    if (this.towerPanelController) {
+      this.towerPanelController.updateAffordability();
+    }
+    if (this.abilityBarController) {
+      this.abilityBarController.updateAffordability();
+    }
   }
 
   /**
@@ -538,6 +640,13 @@ export class GameBootstrap {
       return;
     }
 
+    // Check if player has NoAds - skip ad and continue directly
+    if (this.purchaseService && this.purchaseService.hasNoAds()) {
+      console.log('[GameBootstrap] NoAds purchased, skipping ad for continue');
+      this._doContinue();
+      return;
+    }
+
     // Transition to AD_PAUSED state (DEFEAT → AD_PAUSED per §16.3)
     if (!this.stateMachine.transition(GameState.AD_PAUSED)) {
       console.error('[GameBootstrap] Failed to enter AD_PAUSED state');
@@ -563,7 +672,13 @@ export class GameBootstrap {
     }
 
     console.log('[GameBootstrap] Ad watched, continuing game...');
+    this._doContinue();
+  }
 
+  /**
+   * Execute continue logic (shared between ad and NoAds paths).
+   */
+  _doContinue() {
     // Mark continue as used
     this._continueUsed = true;
 
@@ -594,7 +709,9 @@ export class GameBootstrap {
     console.log('[GameBootstrap] Restarting game...');
 
     // Check if interstitial should be shown (every 3rd defeat)
-    const showInterstitial = this._sessionDefeatCount % 3 === 0 && this._sessionDefeatCount > 0;
+    // Skip if player has NoAds
+    const hasNoAds = this.purchaseService && this.purchaseService.hasNoAds();
+    const showInterstitial = !hasNoAds && this._sessionDefeatCount % 3 === 0 && this._sessionDefeatCount > 0;
 
     if (showInterstitial) {
       // Transition to AD_PAUSED first (DEFEAT → AD_PAUSED per §16.3)
@@ -695,5 +812,230 @@ export class GameBootstrap {
       this.audioService.resume();
       this.audioService.unmute();
     }
+  }
+
+  // ==========================================
+  // TOWER TYPE SELECTION & MANAGEMENT
+  // ==========================================
+
+  /**
+   * Select tower type for building.
+   * @param {string} typeId - Tower type ID ('archer', 'cannon', 'ice', 'lightning', 'sniper')
+   */
+  selectTowerType(typeId) {
+    const towerType = getTowerType(typeId);
+    if (!towerType) {
+      console.warn(`[GameBootstrap] Unknown tower type: ${typeId}`);
+      return;
+    }
+    
+    this.selectedTowerType = typeId;
+    console.log(`[GameBootstrap] Selected tower type: ${typeId} (${towerType.name})`);
+  }
+
+  /**
+   * Upgrade tower at slot.
+   * @param {string} slotId - Slot ID of the tower
+   * @returns {boolean} - true if upgrade succeeded
+   */
+  upgradeTower(slotId) {
+    // Check if upgrade method exists in buildManager
+    if (!this.buildManager.upgradeTower) {
+      console.warn('[GameBootstrap] upgradeTower not implemented in BuildManager');
+      return false;
+    }
+    
+    const success = this.buildManager.upgradeTower(slotId);
+    if (success) {
+      // Update tower in controller if method exists
+      if (this.towerController.updateTowerLevel) {
+        this.towerController.updateTowerLevel(slotId);
+      }
+      this._updateHudGold();
+      this.audioService.playBuildTower();
+      console.log(`[GameBootstrap] Tower upgraded at slot ${slotId}`);
+    }
+    return success;
+  }
+
+  /**
+   * Sell tower at slot.
+   * @param {string} slotId - Slot ID of the tower
+   * @returns {number} - Gold received from sale
+   */
+  sellTower(slotId) {
+    // Check if sell method exists in buildManager
+    if (!this.buildManager.sellTower) {
+      console.warn('[GameBootstrap] sellTower not implemented in BuildManager');
+      return 0;
+    }
+    
+    const gold = this.buildManager.sellTower(slotId);
+    if (gold > 0) {
+      this.towerController.unregisterTower(slotId);
+      this._updateHudGold();
+      this.audioService.playBuildTower(); // Reuse sound
+      console.log(`[GameBootstrap] Tower sold at slot ${slotId}, received ${gold} gold`);
+    }
+    return gold;
+  }
+
+  /**
+   * Get all available tower types.
+   * @returns {Array} - Array of tower type definitions
+   */
+  getTowerTypes() {
+    return getAllTowerTypes();
+  }
+
+  /**
+   * Get all enemy types.
+   * @returns {Array} - Array of enemy type definitions
+   */
+  getEnemyTypes() {
+    return getAllEnemyTypes();
+  }
+
+  // ==========================================
+  // TOWER PANEL & ABILITY BAR CALLBACKS
+  // ==========================================
+
+  /**
+   * Handle tower selection from UI panel.
+   * @param {string} typeId - Selected tower type ID
+   */
+  _onTowerSelect(typeId) {
+    this.selectTowerType(typeId);
+    if (this.towerPanelController) {
+      const towerType = getTowerType(typeId);
+      this.towerPanelController.updateAffordability(this.economyService.gold, towerType?.cost);
+    }
+  }
+
+  /**
+   * Handle tower upgrade from UI panel.
+   * @param {string} slotId - Slot ID of tower to upgrade
+   */
+  _onUpgradeTower(slotId) {
+    const success = this.upgradeTower(slotId);
+    if (success && this.towerPanelController) {
+      this.towerPanelController.updateAffordability(this.economyService.gold);
+    }
+  }
+
+  /**
+   * Handle tower sell from UI panel.
+   * @param {string} slotId - Slot ID of tower to sell
+   */
+  _onSellTower(slotId) {
+    const gold = this.sellTower(slotId);
+    if (gold > 0 && this.towerPanelController) {
+      this.towerPanelController.hideUpgradeMenu();
+      this.towerPanelController.updateAffordability(this.economyService.gold);
+    }
+  }
+
+  /**
+   * Handle ability usage from ability bar.
+   * @param {string} abilityId - Ability ID
+   * @param {Object} ability - Ability configuration
+   */
+  _onUseAbility(abilityId, ability) {
+    console.log(`[GameBootstrap] Using ability: ${abilityId}`);
+    
+    // Check if we can afford the ability cost
+    if (ability.cost > 0 && !this.economyService.canAfford(ability.cost)) {
+      console.log(`[GameBootstrap] Cannot afford ability: ${abilityId}`);
+      return false;
+    }
+
+    // Deduct cost
+    if (ability.cost > 0) {
+      this.economyService.spendGold(ability.cost);
+      this._updateHudGold();
+    }
+
+    // Execute ability effect
+    switch (abilityId) {
+      case 'airstrike':
+        this._executeAirstrike();
+        break;
+      case 'freeze':
+        this._executeFreeze();
+        break;
+      case 'heal':
+        this._executeHeal();
+        break;
+      case 'goldrush':
+        this._executeGoldRush();
+        break;
+      default:
+        console.warn(`[GameBootstrap] Unknown ability: ${abilityId}`);
+    }
+
+    return true;
+  }
+
+  /**
+   * Execute airstrike ability - damage all enemies.
+   */
+  _executeAirstrike() {
+    console.log('[GameBootstrap] Executing AIRSTRIKE');
+    const damage = 50; // Fixed damage to all enemies
+    
+    for (const enemy of this.enemies) {
+      if (enemy.isActive) {
+        enemy.takeDamage(damage);
+        if (this.vfxController && enemy.position) {
+          this.vfxController.createHitEffect(enemy.position);
+        }
+      }
+    }
+    
+    this.audioService.playExplosion();
+  }
+
+  /**
+   * Execute freeze ability - slow all enemies.
+   */
+  _executeFreeze() {
+    console.log('[GameBootstrap] Executing FREEZE');
+    // Slow all enemies for 3 seconds
+    for (const enemy of this.enemies) {
+      if (enemy.isActive && enemy._speed) {
+        enemy._originalSpeed = enemy._speed;
+        enemy._speed *= 0.3; // 70% slow
+        setTimeout(() => {
+          if (enemy._originalSpeed) {
+            enemy._speed = enemy._originalSpeed;
+          }
+        }, 3000);
+      }
+    }
+    
+    this.audioService.playFreeze?.();
+  }
+
+  /**
+   * Execute heal ability - restore base HP.
+   */
+  _executeHeal() {
+    console.log('[GameBootstrap] Executing HEAL');
+    const healAmount = 3;
+    const newHP = Math.min(this.baseHealth.currentHP + healAmount, BASE_MAX_HP);
+    this.baseHealth.setHP(newHP);
+    this._updateHudHP();
+    this.audioService.playHeal?.();
+  }
+
+  /**
+   * Execute gold rush ability - double gold for 10 seconds.
+   */
+  _executeGoldRush() {
+    console.log('[GameBootstrap] Executing GOLD RUSH');
+    this._goldRushMultiplier = 2;
+    this._goldRushTimer = 10;
+    console.log('[GameBootstrap] Gold Rush activated: 2x gold for 10s');
+    this.audioService.playWaveComplete();
   }
 }

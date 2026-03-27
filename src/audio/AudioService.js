@@ -423,6 +423,115 @@ export class AudioService {
   }
 
   /**
+   * Play explosion sound (for airstrike ability).
+   */
+  playExplosion() {
+    const ctx = this._audioContext;
+    if (!ctx || this._muted) return;
+    
+    const now = ctx.currentTime;
+    
+    // Low rumble
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(100, now);
+    osc.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    
+    osc.connect(gain);
+    gain.connect(this._masterGain);
+    
+    osc.start(now);
+    osc.stop(now + 0.5);
+    
+    // Noise burst
+    const bufferSize = ctx.sampleRate * 0.3;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.4, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+    
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this._masterGain);
+    
+    noise.start(now);
+  }
+
+  /**
+   * Play freeze sound (for freeze ability).
+   */
+  playFreeze() {
+    const ctx = this._audioContext;
+    if (!ctx || this._muted) return;
+    
+    const now = ctx.currentTime;
+    
+    // Ice crystal shimmer
+    const notes = [800, 1000, 1200, 1600];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now + i * 0.03);
+      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.03 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.03 + 0.3);
+      
+      osc.connect(gain);
+      gain.connect(this._masterGain);
+      
+      osc.start(now + i * 0.03);
+      osc.stop(now + i * 0.03 + 0.3);
+    });
+  }
+
+  /**
+   * Play heal sound (for heal ability).
+   */
+  playHeal() {
+    const ctx = this._audioContext;
+    if (!ctx || this._muted) return;
+    
+    const now = ctx.currentTime;
+    
+    // Ascending healing chime
+    const notes = [392, 494, 587, 784]; // G4, B4, D5, G5
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now + i * 0.08);
+      gain.gain.linearRampToValueAtTime(0.2, now + i * 0.08 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.4);
+      
+      osc.connect(gain);
+      gain.connect(this._masterGain);
+      
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.4);
+    });
+  }
+
+  /**
    * Mute all audio (for ad playback).
    */
   mute() {

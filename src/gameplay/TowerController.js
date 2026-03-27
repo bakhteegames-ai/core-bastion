@@ -1,10 +1,11 @@
-import { TOWER_RANGE, TOWER_FIRE_RATE } from '../data/balance.js';
+import { getTowerType, getTowerStats } from '../data/towerTypes.js';
 
 /**
  * TowerController
  * Manages tower targeting and firing logic.
  * Task 2.4: Tower Targeting
  * Task 2.5: Projectile firing
+ * Task 4-a: Tower Types Integration
  */
 export class TowerController {
   constructor(app, projectileController) {
@@ -24,20 +25,38 @@ export class TowerController {
 
   /**
    * Register a tower for targeting control.
-   * @param {object} towerData - { entity, slotId, position }
+   * @param {object} towerData - { entity, slotId, position, typeId?, level? }
    */
   registerTower(towerData) {
+    const typeId = towerData.typeId || 'archer';
+    const level = towerData.level || 1;
+    const towerType = getTowerType(typeId);
+    const stats = getTowerStats(typeId, level);
+    
     this.towers.push({
       entity: towerData.entity,
       slotId: towerData.slotId,
       position: towerData.position,
+      typeId: typeId,
+      level: level,
       target: null,
-      range: TOWER_RANGE,
-      fireRate: TOWER_FIRE_RATE,
-      fireCooldown: 0, // Time until next shot
-      onHitCallback: null
+      range: stats.range,
+      damage: stats.damage,
+      fireRate: stats.fireRate,
+      fireCooldown: 0,
+      onHitCallback: null,
+      // Special properties
+      splashRadius: towerType.splashRadius || 0,
+      splashFalloff: towerType.splashFalloff || 0.5,
+      slowFactor: towerType.slowFactor || 0,
+      slowDuration: towerType.slowDuration || 0,
+      chainCount: towerType.chainCount || 0,
+      chainDecay: towerType.chainDecay || 0.7,
+      critChance: towerType.critChance || 0,
+      critMultiplier: towerType.critMultiplier || 2.0,
+      projectileSpeed: stats.projectileSpeed
     });
-    console.log(`[TowerController] Tower registered on slot ${towerData.slotId}`);
+    console.log(`[TowerController] Tower registered on slot ${towerData.slotId} (type: ${typeId}, level: ${level})`);
   }
 
   /**
@@ -92,7 +111,7 @@ export class TowerController {
 
       // Fire if cooldown is ready
       if (tower.fireCooldown <= 0) {
-        this._fire(tower);
+        this._fire(tower, enemies);
         tower.fireCooldown = 1 / tower.fireRate; // Reset cooldown
       }
     }
@@ -152,8 +171,10 @@ export class TowerController {
 
   /**
    * Fire a projectile at the current target.
+   * @param {object} tower - Tower data
+   * @param {EnemyAgent[]} enemies - All active enemies (for AOE/chain)
    */
-  _fire(tower) {
+  _fire(tower, enemies) {
     if (!tower.target || !this.projectileController) return;
 
     // Create projectile from tower position
@@ -163,10 +184,33 @@ export class TowerController {
       z: tower.position.z
     };
 
+    // Calculate damage (with crit for sniper)
+    let damage = tower.damage;
+    let isCrit = false;
+    if (tower.critChance > 0 && Math.random() < tower.critChance) {
+      damage = Math.round(damage * tower.critMultiplier);
+      isCrit = true;
+      console.log(`[TowerController] CRITICAL HIT! ${damage} damage`);
+    }
+
+    // Create projectile with tower type options
     this.projectileController.createProjectile(
       startPos,
       tower.target,
-      tower.onHitCallback
+      {
+        typeId: tower.typeId,
+        damage: damage,
+        onHitCallback: tower.onHitCallback,
+        splashRadius: tower.splashRadius,
+        splashFalloff: tower.splashFalloff,
+        slowFactor: tower.slowFactor,
+        slowDuration: tower.slowDuration,
+        chainCount: tower.chainCount,
+        chainDecay: tower.chainDecay,
+        isCrit: isCrit,
+        speed: tower.projectileSpeed,
+        enemies: enemies // For AOE and chain lightning
+      }
     );
     
     // Fire callback for audio
@@ -174,7 +218,41 @@ export class TowerController {
       this._onFireCallback(tower.position);
     }
 
-    console.log(`[TowerController] Tower on slot ${tower.slotId} fired`);
+    console.log(`[TowerController] Tower on slot ${tower.slotId} fired (${tower.typeId})`);
+  }
+
+  /**
+   * Upgrade a tower's level.
+   * @param {string} slotId
+   * @returns {boolean} - true if upgraded successfully
+   */
+  upgradeTower(slotId) {
+    const tower = this.towers.find(t => t.slotId === slotId);
+    if (!tower || tower.level >= 5) {
+      console.log(`[TowerController] Cannot upgrade tower on slot ${slotId}`);
+      return false;
+    }
+
+    tower.level++;
+    const newStats = getTowerStats(tower.typeId, tower.level);
+    
+    // Update tower stats
+    tower.range = newStats.range;
+    tower.damage = newStats.damage;
+    tower.fireRate = newStats.fireRate;
+    tower.projectileSpeed = newStats.projectileSpeed;
+
+    console.log(`[TowerController] Tower on slot ${slotId} upgraded to level ${tower.level}`);
+    return true;
+  }
+
+  /**
+   * Get tower data by slot ID.
+   * @param {string} slotId
+   * @returns {object|null}
+   */
+  getTower(slotId) {
+    return this.towers.find(t => t.slotId === slotId) || null;
   }
 
   /**

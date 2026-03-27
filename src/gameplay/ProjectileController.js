@@ -1,15 +1,16 @@
 import * as pc from 'playcanvas';
+import { getTowerType } from '../data/towerTypes.js';
 import {
   PROJECTILE_SPEED,
   PROJECTILE_LIFETIME_MAX,
-  PROJECTILE_HIT_RADIUS,
-  TOWER_DAMAGE
+  PROJECTILE_HIT_RADIUS
 } from '../data/balance.js';
 
 /**
  * ProjectileController
  * Manages projectile creation, movement, and hit detection.
  * Task 2.5: Projectile and Hit Logic
+ * Task 4-a: Tower Types Integration
  */
 export class ProjectileController {
   constructor(app) {
@@ -20,7 +21,7 @@ export class ProjectileController {
 
   /**
    * Set callback for when a projectile hits.
-   * @param {Function} callback - Function(position, target)
+   * @param {Function} callback - Function(position, target, options)
    */
   setOnHitCallback(callback) {
     this._onHitCallback = callback;
@@ -30,42 +31,287 @@ export class ProjectileController {
    * Create a new projectile.
    * @param {object} startPosition - { x, y, z }
    * @param {EnemyAgent} target - The target enemy
-   * @param {Function} onHitCallback - Called when projectile hits (enemy, damage)
-   * @returns {object} The projectile data
+   * @param {object} options - Projectile options
+   * @returns {object|null} The projectile data or null for instant effects
    */
-  createProjectile(startPosition, target, onHitCallback) {
-    const entity = new pc.Entity('Projectile');
+  createProjectile(startPosition, target, options = {}) {
+    const {
+      typeId = 'archer',
+      damage = 10,
+      onHitCallback = null,
+      splashRadius = 0,
+      splashFalloff = 0.5,
+      slowFactor = 0,
+      slowDuration = 0,
+      chainCount = 0,
+      chainDecay = 0.7,
+      isCrit = false,
+      speed = null,
+      enemies = []
+    } = options;
 
-    // Visual: small bright pulse (per §7.5)
-    entity.addComponent('render', {
-      type: 'sphere'
-    });
+    const towerType = getTowerType(typeId);
+    const projectileSpeed = speed || towerType.projectileSpeed || PROJECTILE_SPEED;
 
-    entity.setLocalPosition(startPosition.x, startPosition.y, startPosition.z);
-    entity.setLocalScale(0.2, 0.2, 0.2);
+    // LIGHTNING: Instant chain damage, no projectile entity
+    if (typeId === 'lightning') {
+      this._applyChainLightning(target, damage, chainCount || 3, chainDecay || 0.7, startPosition);
+      
+      // Visual effect for lightning
+      this._createLightningEffect(startPosition, target.position);
+      
+      // Callbacks
+      if (onHitCallback) {
+        onHitCallback(target, damage);
+      }
+      if (this._onHitCallback) {
+        this._onHitCallback(startPosition, target, { typeId, isChain: true });
+      }
+      
+      return null;
+    }
 
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.9, 0.95, 1.0); // Bright white/cyan
-    material.emissive = new pc.Color(0.5, 0.7, 0.9);
-    material.update();
-    entity.render.material = material;
-
-    this.app.root.addChild(entity);
+    // Create projectile entity for other types
+    const entity = this._createProjectileEntity(startPosition, typeId, isCrit);
 
     const projectile = {
       entity: entity,
       target: target,
-      speed: PROJECTILE_SPEED,
+      speed: projectileSpeed,
       lifetime: 0,
       maxLifetime: PROJECTILE_LIFETIME_MAX,
       hitRadius: PROJECTILE_HIT_RADIUS,
-      damage: TOWER_DAMAGE,
+      damage: damage,
       onHitCallback: onHitCallback,
-      isActive: true
+      isActive: true,
+      // Type-specific properties
+      typeId: typeId,
+      splashRadius: splashRadius,
+      splashFalloff: splashFalloff,
+      slowFactor: slowFactor,
+      slowDuration: slowDuration,
+      chainCount: chainCount,
+      chainDecay: chainDecay,
+      isCrit: isCrit,
+      enemies: enemies
     };
 
     this.projectiles.push(projectile);
     return projectile;
+  }
+
+  /**
+   * Create a projectile entity with type-specific visuals.
+   */
+  _createProjectileEntity(startPosition, typeId, isCrit = false) {
+    const entity = new pc.Entity(`Projectile_${typeId}`);
+    const towerType = getTowerType(typeId);
+    const color = towerType.color || { r: 0.9, g: 0.95, b: 1.0 };
+
+    // Different shapes for different tower types
+    switch (typeId) {
+      case 'cannon':
+        // Larger, slower cannonball
+        entity.addComponent('render', { type: 'sphere' });
+        entity.setLocalScale(0.35, 0.35, 0.35);
+        break;
+        
+      case 'ice':
+        // Ice shard (elongated diamond)
+        entity.addComponent('render', { type: 'cone' });
+        entity.setLocalScale(0.25, 0.4, 0.25);
+        entity.setLocalEulerAngles(180, 0, 0);
+        break;
+        
+      case 'sniper':
+        // Fast, thin projectile
+        entity.addComponent('render', { type: 'cylinder' });
+        entity.setLocalScale(0.1, 0.5, 0.1);
+        entity.setLocalEulerAngles(90, 0, 0);
+        break;
+        
+      case 'archer':
+      default:
+        // Standard arrow projectile
+        entity.addComponent('render', { type: 'sphere' });
+        entity.setLocalScale(0.2, 0.2, 0.2);
+        break;
+    }
+
+    entity.setLocalPosition(startPosition.x, startPosition.y, startPosition.z);
+
+    // Material based on tower type
+    const material = new pc.StandardMaterial();
+    material.diffuse = new pc.Color(color.r, color.g, color.b);
+    material.emissive = new pc.Color(color.r * 0.5, color.g * 0.5, color.b * 0.5);
+    
+    // Crit glow
+    if (isCrit) {
+      material.emissive = new pc.Color(1, 0.8, 0.2);
+      material.diffuse = new pc.Color(1, 0.9, 0.5);
+    }
+    
+    material.update();
+    entity.render.material = material;
+
+    this.app.root.addChild(entity);
+    return entity;
+  }
+
+  /**
+   * Create a visual lightning effect.
+   */
+  _createLightningEffect(startPos, endPos) {
+    // Create a series of small spheres to simulate lightning
+    const segments = 5;
+    const lightningEntities = [];
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = startPos.x + (endPos.x - startPos.x) * t;
+      const y = startPos.y + (endPos.y - startPos.y) * t;
+      const z = startPos.z + (endPos.z - startPos.z) * t;
+      
+      // Add some randomness for lightning jaggedness
+      const jitter = i > 0 && i < segments ? (Math.random() - 0.5) * 0.3 : 0;
+      
+      const entity = new pc.Entity(`LightningSegment_${i}`);
+      entity.addComponent('render', { type: 'sphere' });
+      entity.setLocalPosition(x + jitter, y + jitter, z);
+      entity.setLocalScale(0.15, 0.15, 0.15);
+      
+      const material = new pc.StandardMaterial();
+      material.diffuse = new pc.Color(0.6, 0.3, 0.9);
+      material.emissive = new pc.Color(1, 0.7, 1);
+      material.update();
+      entity.render.material = material;
+      
+      this.app.root.addChild(entity);
+      lightningEntities.push(entity);
+    }
+    
+    // Remove after short delay
+    setTimeout(() => {
+      lightningEntities.forEach(e => e.destroy());
+    }, 100);
+  }
+
+  /**
+   * Apply chain lightning damage.
+   */
+  _applyChainLightning(startEnemy, damage, chainCount, decay, origin) {
+    const hitEnemies = new Set();
+    let currentEnemy = startEnemy;
+    let currentDamage = damage;
+    let lastPosition = origin;
+
+    for (let i = 0; i < chainCount && currentEnemy; i++) {
+      if (!currentEnemy.isActive || currentEnemy.isDead()) {
+        // Find next target
+        currentEnemy = this._findNextChainTarget(lastPosition, hitEnemies, currentEnemy);
+        continue;
+      }
+
+      // Apply damage
+      currentEnemy.takeDamage(Math.round(currentDamage));
+      hitEnemies.add(currentEnemy);
+      
+      console.log(`[ProjectileController] Chain lightning hit ${i + 1}: ${Math.round(currentDamage)} damage`);
+
+      // Find next target
+      lastPosition = currentEnemy.position;
+      currentEnemy = this._findNextChainTarget(lastPosition, hitEnemies, currentEnemy);
+      
+      // Decay damage
+      currentDamage *= decay;
+    }
+  }
+
+  /**
+   * Find next target for chain lightning.
+   */
+  _findNextChainTarget(position, excludedEnemies, currentEnemy) {
+    if (!this.projectiles.length) return null;
+    
+    // Get enemies from the most recent projectile's options
+    const latestProjectile = this.projectiles[this.projectiles.length - 1];
+    const enemies = latestProjectile?.enemies || [];
+    
+    let nearestEnemy = null;
+    let nearestDistance = 5.0; // Max chain range
+
+    for (const enemy of enemies) {
+      if (!enemy || !enemy.isActive || enemy.isDead()) continue;
+      if (excludedEnemies.has(enemy)) continue;
+
+      const enemyPos = enemy.position;
+      if (!enemyPos) continue;
+
+      const dx = enemyPos.x - position.x;
+      const dz = enemyPos.z - position.z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestEnemy = enemy;
+      }
+    }
+
+    return nearestEnemy;
+  }
+
+  /**
+   * Apply splash damage in radius.
+   */
+  _applySplashDamage(position, radius, damage, falloff, enemies, primaryTarget) {
+    let hitCount = 0;
+
+    for (const enemy of enemies) {
+      if (!enemy || !enemy.isActive || enemy.isDead()) continue;
+
+      const enemyPos = enemy.position;
+      if (!enemyPos) continue;
+
+      const dx = enemyPos.x - position.x;
+      const dy = enemyPos.y - position.y;
+      const dz = enemyPos.z - position.z;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      if (distance <= radius) {
+        // Calculate damage with falloff
+        const distanceRatio = distance / radius;
+        const damageMultiplier = 1 - (distanceRatio * falloff);
+        const actualDamage = Math.round(damage * damageMultiplier);
+
+        enemy.takeDamage(actualDamage);
+        hitCount++;
+      }
+    }
+
+    console.log(`[ProjectileController] Splash damage hit ${hitCount} enemies`);
+  }
+
+  /**
+   * Apply slow effect to enemy.
+   */
+  _applySlow(enemy, factor, duration) {
+    if (enemy.applySlow && typeof enemy.applySlow === 'function') {
+      enemy.applySlow(factor, duration);
+    } else {
+      // Direct slow application if method exists
+      if (enemy._speed !== undefined) {
+        const originalSpeed = enemy._originalSpeed || enemy._speed;
+        enemy._originalSpeed = originalSpeed;
+        enemy._speed = originalSpeed * factor;
+        
+        // Reset after duration
+        setTimeout(() => {
+          if (enemy._originalSpeed) {
+            enemy._speed = enemy._originalSpeed;
+          }
+        }, duration * 1000);
+      }
+    }
   }
 
   /**
@@ -103,24 +349,59 @@ export class ProjectileController {
       const hit = this._moveProjectile(projectile, dt);
 
       if (hit) {
-        // Deal damage
-        target.takeDamage(projectile.damage);
-        console.log(`[ProjectileController] Hit! Dealt ${projectile.damage} damage`);
-
-        // Callback
-        if (projectile.onHitCallback) {
-          projectile.onHitCallback(target, projectile.damage);
-        }
-        
-        // External hit callback (for audio/VFX)
-        if (this._onHitCallback) {
-          const pos = entity.getLocalPosition();
-          this._onHitCallback({ x: pos.x, y: pos.y, z: pos.z }, target);
-        }
-
-        this._destroyProjectile(i);
+        this._handleHit(projectile, i);
       }
     }
+  }
+
+  /**
+   * Handle projectile hit.
+   */
+  _handleHit(projectile, index) {
+    const target = projectile.target;
+    const pos = projectile.entity ? projectile.entity.getLocalPosition() : projectile.target.position;
+
+    // Apply base damage
+    target.takeDamage(projectile.damage);
+    console.log(`[ProjectileController] Hit! Dealt ${projectile.damage} damage (${projectile.typeId})${projectile.isCrit ? ' CRIT!' : ''}`);
+
+    // Apply type-specific effects
+    if (projectile.splashRadius > 0 && projectile.enemies) {
+      // Cannon splash damage
+      this._applySplashDamage(
+        { x: pos.x, y: pos.y, z: pos.z },
+        projectile.splashRadius,
+        projectile.damage,
+        projectile.splashFalloff,
+        projectile.enemies,
+        target
+      );
+    }
+
+    if (projectile.slowFactor > 0) {
+      // Ice slow effect
+      this._applySlow(target, projectile.slowFactor, projectile.slowDuration);
+    }
+
+    // Callbacks
+    if (projectile.onHitCallback) {
+      projectile.onHitCallback(target, projectile.damage);
+    }
+
+    // External hit callback (for audio/VFX)
+    if (this._onHitCallback) {
+      this._onHitCallback(
+        { x: pos.x, y: pos.y, z: pos.z },
+        target,
+        {
+          typeId: projectile.typeId,
+          isCrit: projectile.isCrit,
+          splashRadius: projectile.splashRadius
+        }
+      );
+    }
+
+    this._destroyProjectile(index);
   }
 
   /**

@@ -218,6 +218,339 @@
       transform: scale(1.05);
       box-shadow: 0 4px 30px rgba(78, 205, 196, 0.5);
     }
+
+    /* Tower Panel Styles */
+    #tower-panel-container {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      pointer-events: auto;
+      z-index: 20;
+    }
+    #tower-panel-container.hidden {
+      display: none;
+    }
+    #tower-panel {
+      background: rgba(0, 0, 0, 0.85);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .tower-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tower-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(44, 140, 133, 0.2));
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+      position: relative;
+    }
+    .tower-item:hover {
+      transform: scale(1.02);
+      box-shadow: 0 2px 12px rgba(78, 205, 196, 0.3);
+      background: linear-gradient(135deg, rgba(78, 205, 196, 0.35), rgba(44, 140, 133, 0.35));
+    }
+    .tower-item.selected {
+      border: 2px solid #4ecdc4;
+      background: linear-gradient(135deg, rgba(78, 205, 196, 0.4), rgba(44, 140, 133, 0.4));
+    }
+    .tower-item.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .tower-item.disabled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .tower-item-icon {
+      font-size: 24px;
+    }
+    .tower-item-name {
+      font-size: 13px;
+      color: #fff;
+      font-weight: 500;
+      flex: 1;
+    }
+    .tower-item-cost {
+      font-size: 13px;
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .tower-hotkey {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .tower-info {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .tower-info-name {
+      font-size: 14px;
+      color: #4ecdc4;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+    .tower-info-stats {
+      font-size: 11px;
+      color: #aaa;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+    .stat-label {
+      color: #888;
+    }
+    .stat-value {
+      color: #fff;
+    }
+    .tower-info-desc {
+      font-size: 11px;
+      color: #666;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    /* Upgrade Menu Styles */
+    #upgrade-menu {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      pointer-events: auto;
+      z-index: 25;
+      background: rgba(0, 0, 0, 0.9);
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 220px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    #upgrade-menu.hidden {
+      display: none;
+    }
+    .upgrade-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .upgrade-tower-name {
+      font-size: 16px;
+      color: #4ecdc4;
+      font-weight: bold;
+    }
+    .upgrade-close-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .upgrade-close-btn:hover {
+      color: #fff;
+    }
+    .upgrade-stats {
+      margin-bottom: 12px;
+    }
+    .upgrade-current-stats {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+    .upgrade-next-stats {
+      font-size: 12px;
+      color: #4ecdc4;
+    }
+    .upgrade-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .upgrade-btn, .sell-btn {
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .upgrade-btn {
+      background: linear-gradient(135deg, #4ecdc4, #2c8c85);
+    }
+    .upgrade-btn:hover:not(:disabled) {
+      transform: scale(1.02);
+      box-shadow: 0 2px 12px rgba(78, 205, 196, 0.4);
+    }
+    .upgrade-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+    .sell-btn {
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+    }
+    .sell-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 2px 12px rgba(231, 76, 60, 0.4);
+    }
+
+    /* Abilities Bar Styles */
+    #abilities-bar-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      pointer-events: auto;
+      z-index: 20;
+    }
+    #abilities-bar-container.hidden {
+      display: none;
+    }
+    #abilities-bar {
+      display: flex;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.85);
+      border-radius: 12px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .ability-slot {
+      position: relative;
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, rgba(155, 89, 182, 0.3), rgba(142, 68, 173, 0.3));
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .ability-slot:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 12px rgba(155, 89, 182, 0.4);
+    }
+    .ability-slot.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .ability-slot.disabled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .ability-slot.on-cooldown {
+      opacity: 0.6;
+    }
+    .ability-icon {
+      font-size: 24px;
+    }
+    .ability-cost {
+      font-size: 10px;
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .ability-cooldown {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #fff;
+      border-radius: 8px;
+    }
+    .ability-cooldown.hidden {
+      display: none;
+    }
+    .ability-hotkey {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .ability-tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.95);
+      border-radius: 8px;
+      padding: 8px 12px;
+      min-width: 150px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      margin-bottom: 8px;
+      z-index: 30;
+    }
+    .ability-slot:hover .ability-tooltip {
+      opacity: 1;
+    }
+    .tooltip-name {
+      font-size: 12px;
+      color: #9b59b6;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .tooltip-desc {
+      font-size: 11px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+    .tooltip-cooldown {
+      font-size: 10px;
+      color: #666;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #tower-panel-container {
+        left: 10px;
+        bottom: 10px;
+      }
+      #abilities-bar-container {
+        right: 10px;
+        bottom: 10px;
+      }
+      .tower-item {
+        padding: 8px 10px;
+      }
+      .tower-item-name {
+        font-size: 11px;
+      }
+      .ability-slot {
+        width: 50px;
+        height: 50px;
+      }
+      .ability-icon {
+        font-size: 20px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -269,6 +602,41 @@
     <div class="menu-subtitle" data-i18n="SUBTITLE">Tower Defense</div>
     <div class="menu-best">Best Wave: <span id="menu-best-value">0</span></div>
     <button class="menu-btn" id="menu-play-btn" data-i18n="PLAY">Play</button>
+  </div>
+
+  <!-- Tower Panel -->
+  <div id="tower-panel-container" class="hidden">
+    <div id="tower-panel">
+      <div class="tower-list">
+        <!-- Tower items will be rendered by TowerPanelController -->
+      </div>
+      <div class="tower-info">
+        <!-- Tower info will be rendered by TowerPanelController -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Upgrade Menu -->
+  <div id="upgrade-menu" class="hidden">
+    <div class="upgrade-header">
+      <div class="upgrade-tower-name">Tower Name</div>
+      <button class="upgrade-close-btn">&times;</button>
+    </div>
+    <div class="upgrade-stats">
+      <div class="upgrade-current-stats">Lvl 1 | DMG: 15 | RNG: 6.0</div>
+      <div class="upgrade-next-stats">Lvl 2 | DMG: 19 | RNG: 6.9</div>
+    </div>
+    <div class="upgrade-buttons">
+      <button class="upgrade-btn">Upgrade (50g)</button>
+      <button class="sell-btn">Sell (+50g)</button>
+    </div>
+  </div>
+
+  <!-- Abilities Bar -->
+  <div id="abilities-bar-container" class="hidden">
+    <div id="abilities-bar">
+      <!-- Ability slots will be rendered by AbilityBarController -->
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

@@ -1,11 +1,13 @@
 import * as pc from 'playcanvas';
-import { TOWER_COST, TOWER_RANGE } from '../data/balance.js';
+import { getTowerType, getTowerStats, getUpgradeCost, getSellValue } from '../data/towerTypes.js';
+import { TOWER_RANGE } from '../data/balance.js';
 
 /**
  * BuildManager
  * Handles tower placement on build slots.
  * Task 2.3: Tower Build Placement
  * Task 5.1: Visual Polish Pass
+ * Task 4-a: Tower Types Integration
  */
 export class BuildManager {
   constructor(app, economyService, sceneFactory, assetLoader = null) {
@@ -20,23 +22,27 @@ export class BuildManager {
    * Attempt to build a tower on a slot.
    * @param {string} slotId - The slot id ('A' or 'B')
    * @param {object} slotEntity - The slot entity with position data
-   * @returns {boolean} - true if build succeeded
+   * @param {string} typeId - Tower type ('archer', 'cannon', 'ice', 'lightning', 'sniper')
+   * @returns {object|boolean} - tower data if build succeeded, false otherwise
    */
-  buildTower(slotId, slotEntity) {
+  buildTower(slotId, slotEntity, typeId = 'archer') {
     // Check if slot is already occupied
     if (this.sceneFactory.isSlotOccupied(slotId)) {
       console.log(`[BuildManager] Slot ${slotId} is already occupied`);
       return false;
     }
 
+    const towerType = getTowerType(typeId);
+    const stats = getTowerStats(typeId, 1);
+
     // Check if player can afford the tower
-    if (!this.economyService.canAfford(TOWER_COST)) {
-      console.log(`[BuildManager] Not enough gold. Need ${TOWER_COST}, have ${this.economyService.gold}`);
+    if (!this.economyService.canAfford(towerType.cost)) {
+      console.log(`[BuildManager] Not enough gold. Need ${towerType.cost}, have ${this.economyService.gold}`);
       return false;
     }
 
     // Deduct gold
-    const spent = this.economyService.spendGold(TOWER_COST);
+    const spent = this.economyService.spendGold(towerType.cost);
     if (!spent) {
       console.log('[BuildManager] Failed to spend gold');
       return false;
@@ -51,7 +57,7 @@ export class BuildManager {
     };
 
     // Create tower entity
-    const tower = this._createTowerEntity(slotId, position);
+    const tower = this._createTowerEntity(slotId, position, typeId);
 
     // Mark slot as occupied
     this.sceneFactory.setSlotOccupied(slotId);
@@ -60,26 +66,118 @@ export class BuildManager {
     const towerData = {
       slotId: slotId,
       entity: tower,
-      position: { x: position.x, y: 1.2, z: position.z } // Firing position at top
+      position: { x: position.x, y: 1.2, z: position.z }, // Firing position at top
+      typeId: typeId,
+      level: 1
     };
     this.towers.push(towerData);
 
-    console.log(`[BuildManager] Tower built on slot ${slotId}, gold remaining: ${this.economyService.gold}`);
+    console.log(`[BuildManager] ${towerType.name} built on slot ${slotId}, gold remaining: ${this.economyService.gold}`);
     return towerData;
+  }
+
+  /**
+   * Upgrade a tower.
+   * @param {string} slotId - The slot id
+   * @returns {boolean} - true if upgrade succeeded
+   */
+  upgradeTower(slotId) {
+    const tower = this.towers.find(t => t.slotId === slotId);
+    if (!tower) {
+      console.log(`[BuildManager] No tower found on slot ${slotId}`);
+      return false;
+    }
+
+    if (tower.level >= 5) {
+      console.log(`[BuildManager] Tower on slot ${slotId} is already max level`);
+      return false;
+    }
+
+    const towerType = getTowerType(tower.typeId);
+    const upgradeCost = getUpgradeCost(towerType.cost, tower.level);
+
+    // Check if player can afford upgrade
+    if (!this.economyService.canAfford(upgradeCost)) {
+      console.log(`[BuildManager] Not enough gold for upgrade. Need ${upgradeCost}, have ${this.economyService.gold}`);
+      return false;
+    }
+
+    // Deduct gold
+    const spent = this.economyService.spendGold(upgradeCost);
+    if (!spent) {
+      console.log('[BuildManager] Failed to spend gold for upgrade');
+      return false;
+    }
+
+    // Upgrade tower
+    tower.level++;
+    
+    // Update visual scale
+    if (tower.entity && tower.entity.turret) {
+      const scaleMultiplier = 1 + (tower.level - 1) * 0.1;
+      tower.entity.turret.setLocalScale(0.5 * scaleMultiplier, 0.5 * scaleMultiplier, 0.5 * scaleMultiplier);
+    }
+
+    // Update range indicator
+    const newStats = getTowerStats(tower.typeId, tower.level);
+    if (tower.entity && tower.entity.rangeIndicator) {
+      tower.entity.rangeIndicator.setLocalScale(newStats.range * 2, newStats.range * 2, 0.3);
+    }
+
+    console.log(`[BuildManager] Tower on slot ${slotId} upgraded to level ${tower.level}`);
+    return true;
+  }
+
+  /**
+   * Sell a tower.
+   * @param {string} slotId - The slot id
+   * @returns {number} - Gold received from sale, 0 if failed
+   */
+  sellTower(slotId) {
+    const towerIndex = this.towers.findIndex(t => t.slotId === slotId);
+    if (towerIndex === -1) {
+      console.log(`[BuildManager] No tower found on slot ${slotId}`);
+      return 0;
+    }
+
+    const tower = this.towers[towerIndex];
+    const towerType = getTowerType(tower.typeId);
+    const sellValue = getSellValue(towerType.cost, tower.level);
+
+    // Add gold
+    this.economyService.addGold(sellValue);
+
+    // Destroy tower entity
+    if (tower.entity) {
+      if (tower.entity.rangeIndicator) {
+        tower.entity.rangeIndicator.destroy();
+      }
+      tower.entity.destroy();
+    }
+
+    // Mark slot as unoccupied
+    this.sceneFactory.setSlotUnoccupied(slotId);
+
+    // Remove from tracked towers
+    this.towers.splice(towerIndex, 1);
+
+    console.log(`[BuildManager] Tower on slot ${slotId} sold for ${sellValue} gold`);
+    return sellValue;
   }
 
   /**
    * Create a tower entity at position.
    */
-  _createTowerEntity(slotId, position) {
-    const tower = new pc.Entity(`Tower_${slotId}`);
+  _createTowerEntity(slotId, position, typeId = 'archer') {
+    const tower = new pc.Entity(`Tower_${typeId}_${slotId}`);
     tower.setLocalPosition(position.x, 0, position.z);
+    tower.typeId = typeId;
 
     // Try to use GLB model first
     if (this.assetLoader) {
       const modelEntity = this.assetLoader.createEntityFromModel('turret');
       if (modelEntity) {
-        modelEntity.setLocalScale(0.5, 0.5, 0.5); // Scale the helmet model
+        modelEntity.setLocalScale(0.5, 0.5, 0.5);
         modelEntity.setLocalPosition(0, 0.8, 0);
         tower.addChild(modelEntity);
         tower.turret = modelEntity;
@@ -87,120 +185,358 @@ export class BuildManager {
         this.app.root.addChild(tower);
 
         // Create range indicator
-        this._createRangeIndicator(tower, position);
+        const stats = getTowerStats(typeId, 1);
+        this._createRangeIndicator(tower, position, stats.range);
 
-        console.log('[BuildManager] Tower created with GLB model');
+        console.log(`[BuildManager] Tower created with GLB model (type: ${typeId})`);
         return tower;
       }
     }
 
-    // Fallback to procedural model
-    return this._createProceduralTower(slotId, position);
+    // Fallback to procedural model based on type
+    return this._createProceduralTower(slotId, position, typeId);
   }
 
   /**
-   * Create procedural tower (fallback).
+   * Create procedural tower based on type.
    */
-  _createProceduralTower(slotId, position) {
-    const tower = new pc.Entity(`Tower_${slotId}`);
+  _createProceduralTower(slotId, position, typeId = 'archer') {
+    const tower = new pc.Entity(`Tower_${typeId}_${slotId}`);
     tower.setLocalPosition(position.x, 0, position.z);
+    tower.typeId = typeId;
 
-    // Tower base - hexagonal platform
-    const base = new pc.Entity(`TowerBase_${slotId}`);
-    base.addComponent('render', { type: 'cylinder' });
-    base.setLocalPosition(0, 0.2, 0);
-    base.setLocalScale(1.2, 0.4, 1.2);
+    const towerType = getTowerType(typeId);
+    const color = towerType.color;
+    const stats = getTowerStats(typeId, 1);
 
-    const baseMaterial = new pc.StandardMaterial();
-    baseMaterial.diffuse = new pc.Color(0.25, 0.28, 0.35);
-    baseMaterial.specular = new pc.Color(0.6, 0.6, 0.7);
-    baseMaterial.shininess = 60;
-    baseMaterial.update();
-    base.render.material = baseMaterial;
-
-    tower.addChild(base);
-
-    // Tower energy core (main body)
-    const core = new pc.Entity(`TowerCore_${slotId}`);
-    core.addComponent('render', { type: 'cylinder' });
-    core.setLocalPosition(0, 0.8, 0);
-    core.setLocalScale(0.6, 1.0, 0.6);
-
-    const coreMaterial = new pc.StandardMaterial();
-    coreMaterial.diffuse = new pc.Color(0.3, 0.7, 0.8);
-    coreMaterial.emissive = new pc.Color(0.15, 0.4, 0.5);
-    coreMaterial.specular = new pc.Color(0.8, 0.9, 1);
-    coreMaterial.shininess = 100;
-    coreMaterial.update();
-    core.render.material = coreMaterial;
-
-    tower.addChild(core);
-
-    // Top crystal (turret)
-    const top = new pc.Entity(`TowerTop_${slotId}`);
-    top.addComponent('render', { type: 'cone' });
-    top.setLocalPosition(0, 1.6, 0);
-    top.setLocalScale(0.4, 0.8, 0.4);
-    top.setLocalEulerAngles(180, 0, 0);
-
-    const topMaterial = new pc.StandardMaterial();
-    topMaterial.diffuse = new pc.Color(0.4, 0.95, 1.0);
-    topMaterial.emissive = new pc.Color(0.3, 0.7, 0.8);
-    topMaterial.specular = new pc.Color(1, 1, 1);
-    topMaterial.shininess = 120;
-    topMaterial.update();
-    top.render.material = topMaterial;
-
-    tower.addChild(top);
-    tower.turret = top;
-
-    // Floating rings around core
-    for (let i = 0; i < 2; i++) {
-      const ring = new pc.Entity(`TowerRing_${i}_${slotId}`);
-      ring.addComponent('render', { type: 'torus' });
-      ring.setLocalPosition(0, 0.5 + i * 0.6, 0);
-      ring.setLocalScale(0.8, 0.8, 0.15);
-      ring.setLocalEulerAngles(90, 0, 0);
-
-      const ringMaterial = new pc.StandardMaterial();
-      ringMaterial.diffuse = new pc.Color(0.5, 0.9, 1.0);
-      ringMaterial.emissive = new pc.Color(0.2, 0.6, 0.7);
-      ringMaterial.opacity = 0.7;
-      ringMaterial.update();
-      ring.render.material = ringMaterial;
-
-      tower.addChild(ring);
+    switch (typeId) {
+      case 'cannon':
+        this._createCannonTower(tower, slotId, color);
+        break;
+      case 'ice':
+        this._createIceTower(tower, slotId, color);
+        break;
+      case 'lightning':
+        this._createLightningTower(tower, slotId, color);
+        break;
+      case 'sniper':
+        this._createSniperTower(tower, slotId, color);
+        break;
+      case 'archer':
+      default:
+        this._createArcherTower(tower, slotId, color);
+        break;
     }
 
     this.app.root.addChild(tower);
 
     // Create range indicator
-    this._createRangeIndicator(tower, position);
+    this._createRangeIndicator(tower, position, stats.range);
 
-    console.log('[BuildManager] Tower created with procedural model');
+    console.log(`[BuildManager] Tower created with procedural model (type: ${typeId})`);
     return tower;
+  }
+
+  /**
+   * Create Archer Tower - tall thin tower with conical roof.
+   */
+  _createArcherTower(tower, slotId, color) {
+    // Base platform
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.15, 0);
+    base.setLocalScale(0.8, 0.3, 0.8);
+    this._applyMaterial(base, { r: 0.35, g: 0.25, b: 0.15 });
+    tower.addChild(base);
+
+    // Main tower body
+    const body = new pc.Entity(`TowerBody_${slotId}`);
+    body.addComponent('render', { type: 'cylinder' });
+    body.setLocalPosition(0, 0.9, 0);
+    body.setLocalScale(0.5, 1.2, 0.5);
+    this._applyMaterial(body, color);
+    tower.addChild(body);
+
+    // Conical roof
+    const roof = new pc.Entity(`TowerRoof_${slotId}`);
+    roof.addComponent('render', { type: 'cone' });
+    roof.setLocalPosition(0, 1.9, 0);
+    roof.setLocalScale(0.7, 0.8, 0.7);
+    roof.setLocalEulerAngles(180, 0, 0);
+    this._applyMaterial(roof, { r: 0.3, g: 0.2, b: 0.1 });
+    tower.addChild(roof);
+    tower.turret = roof;
+
+    // Arrow slits
+    for (let i = 0; i < 4; i++) {
+      const slit = new pc.Entity(`Slit_${i}_${slotId}`);
+      slit.addComponent('render', { type: 'box' });
+      slit.setLocalPosition(0, 1.3, 0.25);
+      slit.setLocalScale(0.1, 0.2, 0.05);
+      slit.setLocalEulerAngles(0, i * 90, 0);
+      this._applyMaterial(slit, { r: 0.1, g: 0.1, b: 0.1 });
+      tower.addChild(slit);
+    }
+  }
+
+  /**
+   * Create Cannon Tower - low wide platform with cannon.
+   */
+  _createCannonTower(tower, slotId, color) {
+    // Wide base
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.2, 0);
+    base.setLocalScale(1.2, 0.4, 1.2);
+    this._applyMaterial(base, { r: 0.3, g: 0.3, b: 0.35 });
+    tower.addChild(base);
+
+    // Platform
+    const platform = new pc.Entity(`Platform_${slotId}`);
+    platform.addComponent('render', { type: 'cylinder' });
+    platform.setLocalPosition(0, 0.5, 0);
+    platform.setLocalScale(1.0, 0.1, 1.0);
+    this._applyMaterial(platform, color);
+    tower.addChild(platform);
+
+    // Cannon barrel
+    const barrel = new pc.Entity(`Barrel_${slotId}`);
+    barrel.addComponent('render', { type: 'cylinder' });
+    barrel.setLocalPosition(0, 0.7, 0.4);
+    barrel.setLocalScale(0.25, 0.8, 0.25);
+    barrel.setLocalEulerAngles(-90, 0, 0);
+    this._applyMaterial(barrel, { r: 0.25, g: 0.25, b: 0.3 });
+    tower.addChild(barrel);
+    tower.turret = barrel;
+
+    // Metal rings on barrel
+    for (let i = 0; i < 2; i++) {
+      const ring = new pc.Entity(`Ring_${i}_${slotId}`);
+      ring.addComponent('render', { type: 'torus' });
+      ring.setLocalPosition(0, 0.7, 0.2 + i * 0.35);
+      ring.setLocalScale(0.3, 0.3, 0.08);
+      ring.setLocalEulerAngles(90, 0, 0);
+      this._applyMaterial(ring, { r: 0.4, g: 0.35, b: 0.3 });
+      tower.addChild(ring);
+    }
+  }
+
+  /**
+   * Create Ice Tower - crystal with floating ice shards.
+   */
+  _createIceTower(tower, slotId, color) {
+    // Frost base
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.1, 0);
+    base.setLocalScale(0.7, 0.2, 0.7);
+    this._applyMaterial(base, { r: 0.5, g: 0.6, b: 0.7 });
+    tower.addChild(base);
+
+    // Main crystal
+    const crystal = new pc.Entity(`Crystal_${slotId}`);
+    crystal.addComponent('render', { type: 'cone' });
+    crystal.setLocalPosition(0, 1.0, 0);
+    crystal.setLocalScale(0.5, 1.6, 0.5);
+    crystal.setLocalEulerAngles(180, 0, 0);
+    this._applyMaterial(crystal, color, { emissive: true });
+    tower.addChild(crystal);
+    tower.turret = crystal;
+
+    // Floating ice shards
+    for (let i = 0; i < 3; i++) {
+      const shard = new pc.Entity(`Shard_${i}_${slotId}`);
+      shard.addComponent('render', { type: 'cone' });
+      shard.setLocalPosition(
+        Math.cos(i * Math.PI * 2 / 3) * 0.5,
+        0.8 + i * 0.2,
+        Math.sin(i * Math.PI * 2 / 3) * 0.5
+      );
+      shard.setLocalScale(0.15, 0.3, 0.15);
+      shard.setLocalEulerAngles(180, i * 120, 20);
+      this._applyMaterial(shard, color, { emissive: true, opacity: 0.7 });
+      tower.addChild(shard);
+    }
+
+    // Frost ring at base
+    const frostRing = new pc.Entity(`FrostRing_${slotId}`);
+    frostRing.addComponent('render', { type: 'torus' });
+    frostRing.setLocalPosition(0, 0.15, 0);
+    frostRing.setLocalScale(1.0, 1.0, 0.15);
+    frostRing.setLocalEulerAngles(90, 0, 0);
+    this._applyMaterial(frostRing, { r: 0.3, g: 0.7, b: 0.9 }, { emissive: true, opacity: 0.5 });
+    tower.addChild(frostRing);
+  }
+
+  /**
+   * Create Lightning Tower - dark tower with lightning rod and sphere.
+   */
+  _createLightningTower(tower, slotId, color) {
+    // Dark base
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.2, 0);
+    base.setLocalScale(0.8, 0.4, 0.8);
+    this._applyMaterial(base, { r: 0.15, g: 0.15, b: 0.2 });
+    tower.addChild(base);
+
+    // Dark tower body
+    const body = new pc.Entity(`TowerBody_${slotId}`);
+    body.addComponent('render', { type: 'cylinder' });
+    body.setLocalPosition(0, 0.9, 0);
+    body.setLocalScale(0.4, 1.0, 0.4);
+    this._applyMaterial(body, { r: 0.2, g: 0.15, b: 0.25 });
+    tower.addChild(body);
+
+    // Lightning rod
+    const rod = new pc.Entity(`Rod_${slotId}`);
+    rod.addComponent('render', { type: 'cylinder' });
+    rod.setLocalPosition(0, 1.8, 0);
+    rod.setLocalScale(0.08, 0.8, 0.08);
+    this._applyMaterial(rod, { r: 0.4, g: 0.4, b: 0.45 });
+    tower.addChild(rod);
+    tower.turret = rod;
+
+    // Energy sphere at top
+    const sphere = new pc.Entity(`Sphere_${slotId}`);
+    sphere.addComponent('render', { type: 'sphere' });
+    sphere.setLocalPosition(0, 2.3, 0);
+    sphere.setLocalScale(0.25, 0.25, 0.25);
+    this._applyMaterial(sphere, color, { emissive: true });
+    tower.addChild(sphere);
+
+    // Energy rings
+    for (let i = 0; i < 2; i++) {
+      const ring = new pc.Entity(`EnergyRing_${i}_${slotId}`);
+      ring.addComponent('render', { type: 'torus' });
+      ring.setLocalPosition(0, 1.2 + i * 0.5, 0);
+      ring.setLocalScale(0.6 - i * 0.1, 0.6 - i * 0.1, 0.1);
+      ring.setLocalEulerAngles(90, 0, 0);
+      this._applyMaterial(ring, color, { emissive: true, opacity: 0.6 });
+      tower.addChild(ring);
+    }
+  }
+
+  /**
+   * Create Sniper Tower - very tall with observation deck.
+   */
+  _createSniperTower(tower, slotId, color) {
+    // Base
+    const base = new pc.Entity(`TowerBase_${slotId}`);
+    base.addComponent('render', { type: 'cylinder' });
+    base.setLocalPosition(0, 0.15, 0);
+    base.setLocalScale(0.6, 0.3, 0.6);
+    this._applyMaterial(base, { r: 0.25, g: 0.2, b: 0.2 });
+    tower.addChild(base);
+
+    // Tall thin body
+    const body = new pc.Entity(`TowerBody_${slotId}`);
+    body.addComponent('render', { type: 'cylinder' });
+    body.setLocalPosition(0, 1.5, 0);
+    body.setLocalScale(0.3, 2.4, 0.3);
+    this._applyMaterial(body, color);
+    tower.addChild(body);
+
+    // Observation deck
+    const deck = new pc.Entity(`Deck_${slotId}`);
+    deck.addComponent('render', { type: 'cylinder' });
+    deck.setLocalPosition(0, 2.9, 0);
+    deck.setLocalScale(0.6, 0.15, 0.6);
+    this._applyMaterial(deck, { r: 0.35, g: 0.25, b: 0.25 });
+    tower.addChild(deck);
+
+    // Scope/sight
+    const scope = new pc.Entity(`Scope_${slotId}`);
+    scope.addComponent('render', { type: 'cylinder' });
+    scope.setLocalPosition(0, 3.2, 0.25);
+    scope.setLocalScale(0.1, 0.4, 0.1);
+    scope.setLocalEulerAngles(-90, 0, 0);
+    this._applyMaterial(scope, { r: 0.2, g: 0.2, b: 0.25 });
+    tower.addChild(scope);
+    tower.turret = scope;
+
+    // Antenna
+    const antenna = new pc.Entity(`Antenna_${slotId}`);
+    antenna.addComponent('render', { type: 'cylinder' });
+    antenna.setLocalPosition(0, 3.5, 0);
+    antenna.setLocalScale(0.05, 0.4, 0.05);
+    this._applyMaterial(antenna, { r: 0.3, g: 0.3, b: 0.35 });
+    tower.addChild(antenna);
+
+    // Support struts
+    for (let i = 0; i < 3; i++) {
+      const strut = new pc.Entity(`Strut_${i}_${slotId}`);
+      strut.addComponent('render', { type: 'box' });
+      strut.setLocalPosition(
+        Math.cos(i * Math.PI * 2 / 3 + Math.PI / 6) * 0.25,
+        2.2,
+        Math.sin(i * Math.PI * 2 / 3 + Math.PI / 6) * 0.25
+      );
+      strut.setLocalScale(0.08, 1.0, 0.08);
+      strut.setLocalEulerAngles(-15, i * 120, 0);
+      this._applyMaterial(strut, color);
+      tower.addChild(strut);
+    }
+  }
+
+  /**
+   * Apply material to an entity.
+   */
+  _applyMaterial(entity, color, options = {}) {
+    const material = new pc.StandardMaterial();
+    material.diffuse = new pc.Color(color.r, color.g, color.b);
+    
+    if (options.emissive) {
+      material.emissive = new pc.Color(color.r * 0.5, color.g * 0.5, color.b * 0.5);
+    }
+    
+    if (options.opacity !== undefined) {
+      material.opacity = options.opacity;
+    }
+    
+    material.specular = new pc.Color(0.5, 0.5, 0.5);
+    material.shininess = 60;
+    material.update();
+    entity.render.material = material;
   }
 
   /**
    * Create a visual range indicator for the tower.
    */
-  _createRangeIndicator(tower, position) {
+  _createRangeIndicator(tower, position, range) {
     // Ring to show range
     const ring = new pc.Entity(`TowerRange_${tower.name}`);
     ring.addComponent('render', { type: 'torus' });
     ring.setLocalPosition(position.x, 0.05, position.z);
-    ring.setLocalScale(TOWER_RANGE * 2, TOWER_RANGE * 2, 0.3);
+    ring.setLocalScale(range * 2, range * 2, 0.3);
     ring.setLocalEulerAngles(90, 0, 0);
 
+    const towerType = getTowerType(tower.typeId || 'archer');
+    const color = towerType.color;
+    
     const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.3, 0.7, 0.8);
-    material.emissive = new pc.Color(0.1, 0.35, 0.4);
-    material.opacity = 0.5;
+    material.diffuse = new pc.Color(color.r, color.g, color.b);
+    material.emissive = new pc.Color(color.r * 0.3, color.g * 0.3, color.b * 0.3);
+    material.opacity = 0.4;
     material.update();
     ring.render.material = material;
 
     this.app.root.addChild(ring);
     tower.rangeIndicator = ring;
+  }
+
+  /**
+   * Get tower by slot ID.
+   */
+  getTower(slotId) {
+    return this.towers.find(t => t.slotId === slotId) || null;
+  }
+
+  /**
+   * Get all placed towers.
+   */
+  getTowers() {
+    return this.towers;
   }
 
   /**
@@ -218,12 +554,5 @@ export class BuildManager {
     });
     this.towers = [];
     console.log('[BuildManager] All towers removed');
-  }
-
-  /**
-   * Get all placed towers.
-   */
-  getTowers() {
-    return this.towers;
   }
 }

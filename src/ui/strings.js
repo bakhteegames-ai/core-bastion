@@ -43,7 +43,33 @@ export const STRINGS = {
     
     // Messages
     'msg.not_enough_gold': 'Not enough gold',
-    'msg.slot_occupied': 'Slot occupied'
+    'msg.slot_occupied': 'Slot occupied',
+    
+    // Towers
+    'tower.archer': 'Archer Tower',
+    'tower.cannon': 'Cannon Tower',
+    'tower.ice': 'Ice Tower',
+    'tower.lightning': 'Lightning Tower',
+    'tower.sniper': 'Sniper Tower',
+    
+    'tower.damage': 'Damage',
+    'tower.range': 'Range',
+    'tower.speed': 'Speed',
+    'tower.upgrade': 'Upgrade',
+    'tower.sell': 'Sell',
+    'tower.max_level': 'MAX LEVEL',
+    
+    // Abilities
+    'ability.airstrike': 'Air Strike',
+    'ability.airstrike.desc': 'Deal 100 damage in area',
+    'ability.freeze': 'Freeze',
+    'ability.freeze.desc': 'Freeze all enemies for 3s',
+    'ability.heal': 'Heal Base',
+    'ability.heal.desc': 'Restore 3 base HP',
+    'ability.goldrush': 'Gold Rush',
+    'ability.goldrush.desc': '2x gold for 10s',
+    'ability.cooldown': 'Cooldown',
+    'ability.free': 'Free'
   },
 
   ru: {
@@ -69,7 +95,33 @@ export const STRINGS = {
     
     // Messages
     'msg.not_enough_gold': 'Недостаточно золота',
-    'msg.slot_occupied': 'Слот занят'
+    'msg.slot_occupied': 'Слот занят',
+    
+    // Towers
+    'tower.archer': 'Башня лучников',
+    'tower.cannon': 'Пушечная башня',
+    'tower.ice': 'Ледяная башня',
+    'tower.lightning': 'Молниевая башня',
+    'tower.sniper': 'Снайперская башня',
+    
+    'tower.damage': 'Урон',
+    'tower.range': 'Радиус',
+    'tower.speed': 'Скорость',
+    'tower.upgrade': 'Улучшить',
+    'tower.sell': 'Продать',
+    'tower.max_level': 'МАКС. УРОВЕНЬ',
+    
+    // Abilities
+    'ability.airstrike': 'Авиаудар',
+    'ability.airstrike.desc': '100 урона по области',
+    'ability.freeze': 'Заморозка',
+    'ability.freeze.desc': 'Заморозить врагов на 3 сек',
+    'ability.heal': 'Лечение базы',
+    'ability.heal.desc': 'Восстановить 3 HP базы',
+    'ability.goldrush': 'Золотая лихорадка',
+    'ability.goldrush.desc': '2x золота на 10 сек',
+    'ability.cooldown': 'Кулдаун',
+    'ability.free': 'Бесплатно'
   }
 };
 
