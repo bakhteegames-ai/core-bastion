@@ -8,10 +8,11 @@ import { TOWER_COST, TOWER_RANGE } from '../data/balance.js';
  * Task 5.1: Visual Polish Pass
  */
 export class BuildManager {
-  constructor(app, economyService, sceneFactory) {
+  constructor(app, economyService, sceneFactory, assetLoader = null) {
     this.app = app;
     this.economyService = economyService;
     this.sceneFactory = sceneFactory;
+    this.assetLoader = assetLoader;
     this.towers = []; // Track placed towers
   }
 
@@ -71,6 +72,36 @@ export class BuildManager {
    * Create a tower entity at position.
    */
   _createTowerEntity(slotId, position) {
+    const tower = new pc.Entity(`Tower_${slotId}`);
+    tower.setLocalPosition(position.x, 0, position.z);
+
+    // Try to use GLB model first
+    if (this.assetLoader) {
+      const modelEntity = this.assetLoader.createEntityFromModel('turret');
+      if (modelEntity) {
+        modelEntity.setLocalScale(0.5, 0.5, 0.5); // Scale the helmet model
+        modelEntity.setLocalPosition(0, 0.8, 0);
+        tower.addChild(modelEntity);
+        tower.turret = modelEntity;
+        
+        this.app.root.addChild(tower);
+
+        // Create range indicator
+        this._createRangeIndicator(tower, position);
+
+        console.log('[BuildManager] Tower created with GLB model');
+        return tower;
+      }
+    }
+
+    // Fallback to procedural model
+    return this._createProceduralTower(slotId, position);
+  }
+
+  /**
+   * Create procedural tower (fallback).
+   */
+  _createProceduralTower(slotId, position) {
     const tower = new pc.Entity(`Tower_${slotId}`);
     tower.setLocalPosition(position.x, 0, position.z);
 
@@ -146,6 +177,7 @@ export class BuildManager {
     // Create range indicator
     this._createRangeIndicator(tower, position);
 
+    console.log('[BuildManager] Tower created with procedural model');
     return tower;
   }
 

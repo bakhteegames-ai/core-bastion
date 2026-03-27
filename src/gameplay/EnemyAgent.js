@@ -18,6 +18,7 @@ export class EnemyAgent {
   constructor(app, options = {}) {
     this.app = app;
     this.entity = null;
+    this.assetLoader = options.assetLoader || null;
 
     // Stats (can be overridden via options)
     this._hp = options.hp ?? ENEMY_BASE_HP;
@@ -46,6 +47,29 @@ export class EnemyAgent {
     // Animation time for wobble effect
     this._animTime = Math.random() * Math.PI * 2;
 
+    // Try to use GLB model first
+    if (this.assetLoader) {
+      const modelEntity = this.assetLoader.createEntityFromModel('enemy');
+      if (modelEntity) {
+        modelEntity.setLocalScale(0.02, 0.02, 0.02); // Scale down the monster model
+        modelEntity.setLocalPosition(0, 0, 0);
+        this.entity.addChild(modelEntity);
+        this.modelEntity = modelEntity;
+        this.bodyEntity = modelEntity;
+        
+        this.app.root.addChild(this.entity);
+        console.log(`[EnemyAgent] Spawned with GLB model at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
+        return;
+      }
+    }
+
+    // Fallback to procedural model
+    this._createProceduralModel();
+    this.app.root.addChild(this.entity);
+    console.log(`[EnemyAgent] Spawned with procedural model at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
+  }
+
+  _createProceduralModel() {
     // Enemy body - more menacing crystalline shape
     const body = new pc.Entity('EnemyBody');
     body.addComponent('render', { type: 'box' });
@@ -118,10 +142,6 @@ export class EnemyAgent {
     shadow.render.material = shadowMaterial;
 
     this.entity.addChild(shadow);
-
-    this.app.root.addChild(this.entity);
-
-    console.log(`[EnemyAgent] Spawned at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
   }
 
   /**

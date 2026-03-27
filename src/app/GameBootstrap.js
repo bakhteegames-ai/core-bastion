@@ -1,5 +1,6 @@
 import * as pc from 'playcanvas';
 import { SceneFactory } from '../scene/SceneFactory.js';
+import { AssetLoader } from '../assets/AssetLoader.js';
 import { EnemyAgent } from '../gameplay/EnemyAgent.js';
 import { BaseHealth } from '../gameplay/BaseHealth.js';
 import { EconomyService } from '../gameplay/EconomyService.js';
@@ -25,6 +26,7 @@ export class GameBootstrap {
     this.app = null;
     this.canvas = null;
     this.sceneFactory = null;
+    this.assetLoader = null;
     this.enemies = [];
     this.baseHealth = null;
     this.economyService = null;
@@ -52,7 +54,7 @@ export class GameBootstrap {
     this._sessionDefeatCount = 0;
   }
 
-  init() {
+  async init() {
     this.canvas = document.getElementById('application-canvas');
     if (!this.canvas) {
       console.error('Canvas element not found');
@@ -87,8 +89,14 @@ export class GameBootstrap {
     this.sceneFactory = new SceneFactory(this.app);
     this.sceneFactory.createBattlefield();
 
-    // Initialize build manager
-    this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory);
+    // Initialize asset loader and load models
+    this.assetLoader = new AssetLoader(this.app);
+    console.log('[GameBootstrap] Loading 3D models...');
+    await this.assetLoader.loadAll();
+    console.log('[GameBootstrap] 3D models loaded');
+
+    // Initialize build manager (with asset loader for towers)
+    this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory, this.assetLoader);
 
     // Initialize projectile controller
     this.projectileController = new ProjectileController(this.app);
@@ -348,7 +356,8 @@ export class GameBootstrap {
     const enemy = new EnemyAgent(this.app, {
       hp: enemyData.hp,
       speed: enemyData.speed,
-      goldReward: enemyData.goldReward
+      goldReward: enemyData.goldReward,
+      assetLoader: this.assetLoader
     });
 
     enemy.setOnReachEndpoint((e) => {
