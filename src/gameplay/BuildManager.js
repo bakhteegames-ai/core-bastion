@@ -74,54 +74,72 @@ export class BuildManager {
     const tower = new pc.Entity(`Tower_${slotId}`);
     tower.setLocalPosition(position.x, 0, position.z);
 
-    // Tower base - wider at bottom
+    // Tower base - hexagonal platform
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
-    base.setLocalPosition(0, 0.25, 0);
-    base.setLocalScale(1.0, 0.5, 1.0);
+    base.setLocalPosition(0, 0.2, 0);
+    base.setLocalScale(1.2, 0.4, 1.2);
 
     const baseMaterial = new pc.StandardMaterial();
-    baseMaterial.diffuse = new pc.Color(0.5, 0.55, 0.6);
-    baseMaterial.specular = new pc.Color(0.3, 0.3, 0.35);
-    baseMaterial.shininess = 20;
+    baseMaterial.diffuse = new pc.Color(0.25, 0.28, 0.35);
+    baseMaterial.specular = new pc.Color(0.6, 0.6, 0.7);
+    baseMaterial.shininess = 60;
     baseMaterial.update();
     base.render.material = baseMaterial;
 
     tower.addChild(base);
 
-    // Tower middle section
-    const middle = new pc.Entity(`TowerMiddle_${slotId}`);
-    middle.addComponent('render', { type: 'cylinder' });
-    middle.setLocalPosition(0, 0.9, 0);
-    middle.setLocalScale(0.7, 0.9, 0.7);
+    // Tower energy core (main body)
+    const core = new pc.Entity(`TowerCore_${slotId}`);
+    core.addComponent('render', { type: 'cylinder' });
+    core.setLocalPosition(0, 0.8, 0);
+    core.setLocalScale(0.6, 1.0, 0.6);
 
-    const middleMaterial = new pc.StandardMaterial();
-    middleMaterial.diffuse = new pc.Color(0.75, 0.8, 0.85);
-    middleMaterial.emissive = new pc.Color(0.15, 0.25, 0.35);
-    middleMaterial.specular = new pc.Color(0.4, 0.4, 0.45);
-    middleMaterial.shininess = 40;
-    middleMaterial.update();
-    middle.render.material = middleMaterial;
+    const coreMaterial = new pc.StandardMaterial();
+    coreMaterial.diffuse = new pc.Color(0.3, 0.7, 0.8);
+    coreMaterial.emissive = new pc.Color(0.15, 0.4, 0.5);
+    coreMaterial.specular = new pc.Color(0.8, 0.9, 1);
+    coreMaterial.shininess = 100;
+    coreMaterial.update();
+    core.render.material = coreMaterial;
 
-    tower.addChild(middle);
+    tower.addChild(core);
 
-    // Tower top / turret
+    // Top crystal (turret)
     const top = new pc.Entity(`TowerTop_${slotId}`);
     top.addComponent('render', { type: 'cone' });
     top.setLocalPosition(0, 1.6, 0);
-    top.setLocalScale(0.5, 0.6, 0.5);
-    top.setLocalEulerAngles(180, 0, 0); // Point up
+    top.setLocalScale(0.4, 0.8, 0.4);
+    top.setLocalEulerAngles(180, 0, 0);
 
     const topMaterial = new pc.StandardMaterial();
-    topMaterial.diffuse = new pc.Color(0.4, 0.85, 0.95);
-    topMaterial.emissive = new pc.Color(0.2, 0.5, 0.6);
-    topMaterial.specular = new pc.Color(0.5, 0.5, 0.5);
-    topMaterial.shininess = 60;
+    topMaterial.diffuse = new pc.Color(0.4, 0.95, 1.0);
+    topMaterial.emissive = new pc.Color(0.3, 0.7, 0.8);
+    topMaterial.specular = new pc.Color(1, 1, 1);
+    topMaterial.shininess = 120;
     topMaterial.update();
     top.render.material = topMaterial;
 
     tower.addChild(top);
     tower.turret = top;
+
+    // Floating rings around core
+    for (let i = 0; i < 2; i++) {
+      const ring = new pc.Entity(`TowerRing_${i}_${slotId}`);
+      ring.addComponent('render', { type: 'torus' });
+      ring.setLocalPosition(0, 0.5 + i * 0.6, 0);
+      ring.setLocalScale(0.8, 0.8, 0.15);
+      ring.setLocalEulerAngles(90, 0, 0);
+
+      const ringMaterial = new pc.StandardMaterial();
+      ringMaterial.diffuse = new pc.Color(0.5, 0.9, 1.0);
+      ringMaterial.emissive = new pc.Color(0.2, 0.6, 0.7);
+      ringMaterial.opacity = 0.7;
+      ringMaterial.update();
+      ring.render.material = ringMaterial;
+
+      tower.addChild(ring);
+    }
 
     this.app.root.addChild(tower);
 

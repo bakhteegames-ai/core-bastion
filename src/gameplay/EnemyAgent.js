@@ -43,54 +43,77 @@ export class EnemyAgent {
     this.entity = new pc.Entity('Enemy');
     this.entity.setLocalPosition(this._waypoints[0].x, 0, this._waypoints[0].z);
 
-    // Enemy body - angular, aggressive looking
+    // Animation time for wobble effect
+    this._animTime = Math.random() * Math.PI * 2;
+
+    // Enemy body - more menacing crystalline shape
     const body = new pc.Entity('EnemyBody');
     body.addComponent('render', { type: 'box' });
-    body.setLocalPosition(0, 0.5, 0);
-    body.setLocalScale(0.7, 0.8, 0.7);
+    body.setLocalPosition(0, 0.6, 0);
+    body.setLocalScale(0.8, 1.0, 0.8);
     body.setLocalEulerAngles(0, 45, 0); // Diamond shape
 
-    // Warm hostile color (per §7.4) with HP-based intensity
-    const intensity = Math.min(1, this._maxHP / 50); // Brighter for stronger enemies
+    // Glowing hostile color with HP-based intensity
+    const intensity = Math.min(1, this._maxHP / 50);
     const bodyMaterial = new pc.StandardMaterial();
     bodyMaterial.diffuse = new pc.Color(
-      0.9 + intensity * 0.1,
-      0.3 + (1 - intensity) * 0.2,
-      0.2
+      0.95,
+      0.25 + (1 - intensity) * 0.3,
+      0.15
     );
-    bodyMaterial.emissive = new pc.Color(0.5, 0.15, 0.05);
-    bodyMaterial.specular = new pc.Color(0.3, 0.2, 0.2);
-    bodyMaterial.shininess = 10;
+    bodyMaterial.emissive = new pc.Color(0.8, 0.2, 0.1);
+    bodyMaterial.specular = new pc.Color(1, 0.8, 0.5);
+    bodyMaterial.shininess = 80;
     bodyMaterial.update();
     body.render.material = bodyMaterial;
 
     this.entity.addChild(body);
     this.bodyEntity = body;
 
-    // Enemy head/eye
-    const head = new pc.Entity('EnemyHead');
-    head.addComponent('render', { type: 'sphere' });
-    head.setLocalPosition(0, 1.0, 0);
-    head.setLocalScale(0.3, 0.3, 0.3);
+    // Secondary crystal on top
+    const topCrystal = new pc.Entity('EnemyTop');
+    topCrystal.addComponent('render', { type: 'cone' });
+    topCrystal.setLocalPosition(0, 1.3, 0);
+    topCrystal.setLocalScale(0.5, 0.6, 0.5);
+    topCrystal.setLocalEulerAngles(180, 0, 0);
 
-    const headMaterial = new pc.StandardMaterial();
-    headMaterial.diffuse = new pc.Color(1.0, 0.8, 0.2);
-    headMaterial.emissive = new pc.Color(0.6, 0.4, 0.0);
-    headMaterial.update();
-    head.render.material = headMaterial;
+    const topMaterial = new pc.StandardMaterial();
+    topMaterial.diffuse = new pc.Color(1, 0.5, 0.2);
+    topMaterial.emissive = new pc.Color(0.6, 0.15, 0.05);
+    topMaterial.specular = new pc.Color(1, 0.9, 0.6);
+    topMaterial.shininess = 100;
+    topMaterial.update();
+    topCrystal.render.material = topMaterial;
 
-    this.entity.addChild(head);
-    this.headEntity = head;
+    this.entity.addChild(topCrystal);
+    this.topCrystal = topCrystal;
+
+    // Glowing core (eye)
+    const core = new pc.Entity('EnemyCore');
+    core.addComponent('render', { type: 'sphere' });
+    core.setLocalPosition(0, 0.9, 0.35);
+    core.setLocalScale(0.25, 0.25, 0.25);
+
+    const coreMaterial = new pc.StandardMaterial();
+    coreMaterial.diffuse = new pc.Color(1, 0.9, 0.5);
+    coreMaterial.emissive = new pc.Color(2, 1.5, 0.5);
+    coreMaterial.specular = new pc.Color(1, 1, 0.8);
+    coreMaterial.shininess = 100;
+    coreMaterial.update();
+    core.render.material = coreMaterial;
+
+    this.entity.addChild(core);
+    this.coreEntity = core;
 
     // Ground shadow
     const shadow = new pc.Entity('EnemyShadow');
     shadow.addComponent('render', { type: 'plane' });
     shadow.setLocalPosition(0, 0.02, 0);
-    shadow.setLocalScale(1.0, 1, 1.0);
+    shadow.setLocalScale(1.2, 1, 1.2);
 
     const shadowMaterial = new pc.StandardMaterial();
-    shadowMaterial.diffuse = new pc.Color(0.1, 0.08, 0.08);
-    shadowMaterial.opacity = 0.4;
+    shadowMaterial.diffuse = new pc.Color(0.05, 0.02, 0.02);
+    shadowMaterial.opacity = 0.5;
     shadowMaterial.update();
     shadow.render.material = shadowMaterial;
 
@@ -168,6 +191,18 @@ export class EnemyAgent {
    */
   update(dt) {
     if (!this._isActive || !this.entity) return;
+
+    // Animation: wobble and pulse
+    this._animTime += dt * 5;
+    if (this.bodyEntity) {
+      const wobble = Math.sin(this._animTime) * 0.1;
+      this.bodyEntity.setLocalPosition(0, 0.6 + wobble * 0.3, 0);
+      this.bodyEntity.setLocalScale(0.8 + wobble * 0.05, 1.0 - wobble * 0.05, 0.8 + wobble * 0.05);
+    }
+    if (this.coreEntity) {
+      const pulse = 0.25 + Math.sin(this._animTime * 2) * 0.05;
+      this.coreEntity.setLocalScale(pulse, pulse, pulse);
+    }
 
     // Check if we've reached the end of the path
     if (this._currentWaypointIndex >= this._waypoints.length) {

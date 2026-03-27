@@ -27,3 +27,4 @@ npm-debug.log*
 
 # Lock files (optional - some prefer to commit these)
 # package-lock.json
+.vercel
