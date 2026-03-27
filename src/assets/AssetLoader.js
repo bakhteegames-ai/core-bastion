@@ -19,8 +19,7 @@ export class AssetLoader {
     return new Promise((resolve) => {
       const assetList = [
         { name: 'enemy', url: '/assets/models/enemy.glb', type: 'container' },
-        { name: 'tower', url: '/assets/models/turret.glb', type: 'container' },
-        { name: 'base', url: '/assets/models/base.glb', type: 'container' }
+        { name: 'turret', url: '/assets/models/turret.glb', type: 'container' }
       ];
 
       let loadedCount = 0;
