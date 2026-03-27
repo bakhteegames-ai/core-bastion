@@ -4,7 +4,7 @@
  * Implements exact PlatformBridge API for Yandex Games platform.
  */
 
-import { PlatformBridge } from './PlatformBridge.js';
+import { PlatformBridge } from './PlatformBridgeBase.js';
 
 export class YandexBridge extends PlatformBridge {
   constructor() {
@@ -267,5 +267,101 @@ export class YandexBridge extends PlatformBridge {
    */
   get sdk() {
     return this._ysdk;
+  }
+
+  // ==========================================
+  // IAP (In-App Purchases)
+  // ==========================================
+
+  /**
+   * Initialize payments system
+   */
+  async initPayments() {
+    if (!this._ysdk) {
+      console.log('[YandexBridge] initPayments() - no SDK');
+      return false;
+    }
+
+    try {
+      // Check if payments are available
+      if (this._ysdk.payments) {
+        console.log('[YandexBridge] Payments initialized');
+        return true;
+      }
+    } catch (e) {
+      console.warn('[YandexBridge] Payments init failed:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Get available products
+   */
+  async getProducts(productIds) {
+    if (!this._ysdk || !this._ysdk.payments) {
+      return [];
+    }
+
+    try {
+      const products = await this._ysdk.payments.getCatalog();
+      return products || [];
+    } catch (e) {
+      console.error('[YandexBridge] getProducts error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get user purchases
+   */
+  async getPurchases() {
+    if (!this._ysdk || !this._ysdk.payments) {
+      return [];
+    }
+
+    try {
+      const purchases = await this._ysdk.payments.getPurchases();
+      return purchases || [];
+    } catch (e) {
+      console.error('[YandexBridge] getPurchases error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Purchase a product
+   */
+  async purchase(options) {
+    if (!this._ysdk || !this._ysdk.payments) {
+      console.log('[YandexBridge] purchase() - no payments');
+      return null;
+    }
+
+    try {
+      const result = await this._ysdk.payments.purchase(options);
+      console.log('[YandexBridge] purchase result:', result);
+      return result;
+    } catch (e) {
+      console.error('[YandexBridge] purchase error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Consume a purchase
+   */
+  async consumePurchase(purchaseToken) {
+    if (!this._ysdk || !this._ysdk.payments) {
+      return false;
+    }
+
+    try {
+      await this._ysdk.payments.consumePurchase(purchaseToken);
+      console.log('[YandexBridge] Purchase consumed:', purchaseToken);
+      return true;
+    } catch (e) {
+      console.error('[YandexBridge] consumePurchase error:', e);
+      return false;
+    }
   }
 }
