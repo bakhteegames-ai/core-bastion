@@ -3,6 +3,7 @@ import { EnemySpawner } from './EnemySpawner.js';
 import { getEnemyComposition, getEnemyStats } from '../data/enemyTypes.js';
 import { generateModifierSchedule, getModifierForWave } from '../data/waveModifiers.js';
 import { WaveModifierSystem } from './WaveModifierSystem.js';
+import { EventBus } from '../core/EventBus.js';
 
 /**
  * WaveManager
@@ -367,9 +368,23 @@ export class WaveManager {
     this._waveActive = false;
     console.log(`[WaveManager] Wave ${this._currentWave} complete`);
 
+    // Calculate reward and emit event for decoupled handling
+    const reward = this._calculateWaveReward(this._currentWave);
+    EventBus.emit('wave:completed', { waveIndex: this._currentWave, reward });
+
     if (this._onWaveCompleteCallback) {
       this._onWaveCompleteCallback(this._currentWave);
     }
+  }
+
+  /**
+   * Calculate wave reward based on wave number.
+   * @param {number} waveIndex - Current wave index
+   * @returns {number} Gold reward
+   */
+  _calculateWaveReward(waveIndex) {
+    // Base reward: 50 gold, increases by 10 per wave
+    return 50 + (waveIndex * 10);
   }
 
   /**

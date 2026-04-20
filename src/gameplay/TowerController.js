@@ -1,5 +1,6 @@
 import { getTowerType, getTowerStats } from '../data/towerTypes.js';
 import { SpatialGrid } from './SpatialGrid.js';
+import { EventBus } from '../core/EventBus.js';
 
 /**
  * TowerController
@@ -20,6 +21,26 @@ export class TowerController {
     // OPTIMIZATION: Spatial grid for fast enemy lookup
     // Map dimensions based on typical level size (adjust as needed)
     this.spatialGrid = new SpatialGrid(40, 40, 4); // 40x40 units, 4-unit cells
+    
+    // Subscribe to wave completion events for gold rewards
+    EventBus.on('wave:completed', this._onWaveCompleted, this);
+  }
+
+  /**
+   * Handle wave completion event - receive gold reward.
+   * @param {Object} data - { waveIndex, reward }
+   */
+  _onWaveCompleted({ reward }) {
+    this._addGold(reward);
+  }
+
+  /**
+   * Add gold to tower controller (for future tower-related economy).
+   * @param {number} amount - Gold amount to add
+   */
+  _addGold(amount) {
+    // Currently towers don't have their own economy, but this is here for extensibility
+    console.log(`[TowerController] Wave complete reward: ${amount} gold`);
   }
   
   /**

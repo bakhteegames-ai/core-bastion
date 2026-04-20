@@ -4,6 +4,7 @@
  */
 
 import { getString } from './strings.js';
+import { EventBus } from '../core/EventBus.js';
 
 export class HudController {
   constructor() {
@@ -56,7 +57,28 @@ export class HudController {
     // Setup button handlers
     this._setupButtons();
 
+    // Subscribe to wave completion events for UI updates
+    EventBus.on('wave:completed', () => this._onWaveCompleted());
+
     console.log('[HudController] Initialized');
+  }
+
+  /**
+   * Handle wave completion event - update UI.
+   */
+  _onWaveCompleted() {
+    // Gold will be updated by economy service, but we can trigger a refresh here if needed
+    this.updateGold();
+  }
+
+  /**
+   * Update the displayed gold from economy service.
+   */
+  updateGold() {
+    // This method can be called externally or via event to refresh gold display
+    if (window.__game?.economyService) {
+      this.setGold(window.__game.economyService.gold);
+    }
   }
 
   /**
