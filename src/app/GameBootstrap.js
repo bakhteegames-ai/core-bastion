@@ -26,6 +26,17 @@ import { PurchaseService } from '../gameplay/PurchaseService.js';
 import { getLevel, getAllLevels } from '../data/levels.js';
 import { generateModifierSchedule } from '../data/waveModifiers.js';
 
+// Meta progression system
+import { MetaProgressionService } from '../meta/MetaProgressionService.js';
+import { RunModifier } from '../meta/RunModifier.js';
+import { MetaHubController } from '../ui/MetaHubController.js';
+import { calculateRunShards } from '../data/talents.js';
+
+// Daily systems
+import { DailyChallengeService } from '../daily/DailyChallengeService.js';
+import { LeaderboardService } from '../daily/LeaderboardService.js';
+import { DailyRewards } from '../daily/DailyRewards.js';
+
 /**
  * GameBootstrap
  * Task 5.2: Audio Placeholders
@@ -177,6 +188,20 @@ export class GameBootstrap {
     // Initialize save service (will be connected to platform bridge)
     this.saveService = new SaveService();
 
+    // Initialize meta progression system
+    this.metaProgression = new MetaProgressionService(this.saveService);
+    await this.metaProgression.initialize();
+    this.runModifier = new RunModifier(this.metaProgression);
+
+    // Initialize daily systems
+    this.dailyChallenge = new DailyChallengeService(this.saveService);
+    await this.dailyChallenge.initialize();
+    this.leaderboard = new LeaderboardService(this.platformBridge);
+    await this.leaderboard.initialize();
+    this.dailyRewards = new DailyRewards(this.saveService);
+    await this.dailyRewards.initialize();
+    this._checkDailyRewards();
+
     // Initialize audio service
     this.audioService = new AudioService();
 
@@ -220,7 +245,12 @@ export class GameBootstrap {
         getTowerTypes: () => getAllTowerTypes(),
         getEnemyTypes: () => getAllEnemyTypes(),
         getLevels: () => getAllLevels(),
-        selectLevel: (id) => this.selectLevel(id)
+        selectLevel: (id) => this.selectLevel(id),
+        // Meta progression
+        metaProgression: this.metaProgression,
+        dailyChallenge: this.dailyChallenge,
+        leaderboard: this.leaderboard,
+        dailyRewards: this.dailyRewards
       };
       
       console.log(`[GameBootstrap] Platform bridge ready (lang: ${lang})`);
@@ -511,6 +541,16 @@ export class GameBootstrap {
 
   async _onWaveComplete(waveNumber) {
     console.log(`[GameBootstrap] Wave ${waveNumber} complete!`);
+    
+    // Apply HP regen from meta progression talents
+    const regen = this.runModifier.getHpRegenPerWave();
+    if (regen > 0) {
+      const b = this.baseHealth;
+      b.setHP(Math.min(b.currentHP + regen, b.maxHP));
+      this._updateHudHP();
+      console.log(`[GameBootstrap] HP regenerated: ${regen}`);
+    }
+
     this.audioService.playWaveComplete();
     // Update best wave if new record
     const newRecord = await this.saveService.updateBestWave(waveNumber);
@@ -761,6 +801,46 @@ export class GameBootstrap {
    * Uses DEFEAT → BOOT if no interstitial scheduled.
    */
   async _restartGame() {
+    // Show meta hub instead of immediately restarting
+    this._showMetaHub();
+  }
+
+  /**
+   * Show Meta Hub screen for talent upgrades between runs
+   */
+  _showMetaHub() {
+    if (!this.metaHubController) {
+      this.metaHubController = new MetaHubController({
+        metaService: this.metaProgression,
+        onStartRun: () => {
+          this.metaHubController.hide();
+          this._doRestartGame();
+        },
+        onWatchAd: async () => {
+          if (this.platformBridge) {
+            const result = await this.platformBridge.showRewarded('shards_x2');
+            if (result.rewarded) {
+              this.metaProgression.awardShards(this._shardsEarnedThisRun);
+              this.metaHubController._render();
+            }
+          }
+        },
+        onConvertCrystals: () => {
+          const amount = prompt('Сколько кристаллов? (1 = 10 осколков)');
+          if (amount && !isNaN(amount)) {
+            this.metaProgression.convertCrystalsToShards(parseInt(amount));
+            this.metaHubController._render();
+          }
+        }
+      });
+    }
+    this.metaHubController.show();
+  }
+
+  /**
+   * Internal restart logic called from MetaHub
+   */
+  async _doRestartGame() {
     console.log('[GameBootstrap] Restarting game...');
 
     // Check if interstitial should be shown (every 3rd defeat)
@@ -1092,5 +1172,16 @@ export class GameBootstrap {
     this._goldRushTimer = 10;
     console.log('[GameBootstrap] Gold Rush activated: 2x gold for 10s');
     this.audioService.playWaveComplete();
+  }
+
+  /**
+   * Check daily rewards and notify if available
+   */
+  _checkDailyRewards() {
+    const info = this.dailyRewards.getStreakInfo();
+    if (info.canClaim) {
+      console.log('[GameBootstrap] Daily reward available!', info.nextReward);
+      // Could show notification in HUD here
+    }
   }
 }
