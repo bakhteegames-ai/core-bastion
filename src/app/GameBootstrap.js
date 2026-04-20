@@ -166,6 +166,8 @@ export class GameBootstrap {
     });
     this.waveManager.setOnWaveStart((waveNumber) => {
       this._onWaveStart(waveNumber);
+      // Apply talent bonuses for the new wave if needed
+      this.runModifier?.applyToWave(waveNumber);
     });
 
     // Initialize HUD controller
@@ -557,6 +559,8 @@ export class GameBootstrap {
     if (newRecord) {
       this.hudController.setHighWave(this.saveService.bestWave);
     }
+    // Apply talent bonuses after wave completion
+    this.runModifier?.applyToWaveCompletion(waveNumber);
     // Transition back to BUILD_PHASE for next wave
     this._startBuildPhase();
   }
@@ -569,6 +573,12 @@ export class GameBootstrap {
     console.log(`[GameBootstrap] Session defeat count: ${this._sessionDefeatCount}`);
     
     this.stateMachine.transition(GameState.DEFEAT);
+    
+    // Award meta progression shards upon defeat (if no continue used)
+    if (this.metaProgression && !this._continueUsed) {
+      this._awardDefeatShards();
+    }
+    
     this.audioService.playDefeat();
     this.hudController.showDefeat(
       this.waveManager.currentWave,
