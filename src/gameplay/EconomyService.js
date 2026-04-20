@@ -2,14 +2,17 @@
  * EconomyService
  * Manages gold tracking for the run.
  * Task 2.1: Economy Baseline
+ * Updated: Support for gold multiplier from Ultimate Ability System
  */
 export class EconomyService {
   /**
    * @param {number} startingGold - Initial gold amount (default: 100 per §17.4)
    */
-  constructor(startingGold = 100) {
+  constructor(startingGold = 100, options = {}) {
     this._gold = startingGold;
     this._startingGold = startingGold;
+    this._goldMultiplier = 1.0;
+    this.onGoldMultiplierChange = options.onGoldMultiplierChange || null;
   }
 
   /**
@@ -29,6 +32,29 @@ export class EconomyService {
   }
 
   /**
+   * Get current gold multiplier.
+   * @returns {number}
+   */
+  get goldMultiplier() {
+    return this._goldMultiplier;
+  }
+
+  /**
+   * Set gold multiplier (from ultimate abilities).
+   * @param {number} multiplier
+   */
+  setGoldMultiplier(multiplier) {
+    const oldMultiplier = this._goldMultiplier;
+    this._goldMultiplier = multiplier;
+    
+    if (oldMultiplier !== multiplier && this.onGoldMultiplierChange) {
+      this.onGoldMultiplierChange(multiplier);
+    }
+    
+    console.log(`[EconomyService] Gold multiplier set to ${multiplier}x`);
+  }
+
+  /**
    * Check if player can afford a cost.
    * @param {number} amount
    * @returns {boolean}
@@ -38,16 +64,24 @@ export class EconomyService {
   }
 
   /**
-   * Add gold to the current amount.
-   * @param {number} amount
+   * Add gold to the current amount (with multiplier applied).
+   * @param {number} amount - Base amount before multiplier
+   * @param {boolean} applyMultiplier - Whether to apply gold multiplier
    */
-  addGold(amount) {
+  addGold(amount, applyMultiplier = true) {
     if (amount < 0) {
       console.warn('[EconomyService] Cannot add negative gold');
       return;
     }
-    this._gold += amount;
-    console.log(`[EconomyService] Added ${amount} gold, total: ${this._gold}`);
+    
+    const finalAmount = applyMultiplier ? Math.floor(amount * this._goldMultiplier) : amount;
+    this._gold += finalAmount;
+    
+    if (this._goldMultiplier !== 1.0) {
+      console.log(`[EconomyService] Added ${amount}g ×${this._goldMultiplier} = ${finalAmount}g, total: ${this._gold}`);
+    } else {
+      console.log(`[EconomyService] Added ${finalAmount} gold, total: ${this._gold}`);
+    }
   }
 
   /**
@@ -81,6 +115,7 @@ export class EconomyService {
       this._startingGold = newStartingGold;
     }
     this._gold = this._startingGold;
+    this._goldMultiplier = 1.0;
     console.log(`[EconomyService] Reset to ${this._gold}`);
   }
 

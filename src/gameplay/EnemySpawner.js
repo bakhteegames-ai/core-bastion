@@ -361,6 +361,14 @@ export class EnemySpawner {
   }
 
   /**
+   * Get all active enemies (for ultimate system).
+   * @returns {Array<EnemyAgent>}
+   */
+  getActiveEnemies() {
+    return this._activeEnemies.filter(e => e.isActive);
+  }
+
+  /**
    * Find the furthest progressed enemy (closest to endpoint).
    * @returns {EnemyAgent|null}
    */

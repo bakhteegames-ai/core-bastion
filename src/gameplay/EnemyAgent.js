@@ -480,6 +480,22 @@ export class EnemyAgent {
   }
 
   /**
+   * Get position as vector (for ultimate system).
+   * @returns {Object} Position object with x, y, z
+   */
+  getPosition() {
+    return this.position;
+  }
+
+  /**
+   * Get entity ID (for tracking in chain lightning).
+   * @returns {number} Entity GUID or hash
+   */
+  getEntityId() {
+    return this.entity?.getGuid?.() || this.entity?._guid || Math.random();
+  }
+
+  /**
    * Get collision radius.
    */
   get collisionRadius() {
