@@ -23,6 +23,8 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 import { getAllTowerTypes, getTowerType, getTowerStats } from '../data/towerTypes.js';
 import { getAllEnemyTypes, getEnemyType, getEnemyStats } from '../data/enemyTypes.js';
 import { PurchaseService } from '../gameplay/PurchaseService.js';
+import { getLevel, getAllLevels } from '../data/levels.js';
+import { generateModifierSchedule } from '../data/waveModifiers.js';
 
 /**
  * GameBootstrap
@@ -71,6 +73,13 @@ export class GameBootstrap {
     // Gold rush multiplier
     this._goldRushMultiplier = 1;
     this._goldRushTimer = 0;
+    
+    // Level selection
+    this._currentLevelId = 'meadow';
+    this._levelsUnlocked = ['meadow']; // Persist in save later
+    
+    // Modifier schedule
+    this._modifierSchedule = [];
   }
 
   async init() {
@@ -209,7 +218,9 @@ export class GameBootstrap {
         purchaseService: this.purchaseService,
         economyService: this.economyService,
         getTowerTypes: () => getAllTowerTypes(),
-        getEnemyTypes: () => getAllEnemyTypes()
+        getEnemyTypes: () => getAllEnemyTypes(),
+        getLevels: () => getAllLevels(),
+        selectLevel: (id) => this.selectLevel(id)
       };
       
       console.log(`[GameBootstrap] Platform bridge ready (lang: ${lang})`);
@@ -622,11 +633,55 @@ export class GameBootstrap {
     
     this._gameStarted = true;
     this._continueUsed = false;
+    
+    // Generate modifier schedule for this run
+    this._modifierSchedule = generateModifierSchedule(3, 5); // 3 modifiers, every 5 waves
+    this.waveManager.setModifierSchedule(this._modifierSchedule);
+    console.log('[GameBootstrap] Modifier schedule:', this._modifierSchedule.map(m => `${m.modifier.name} (волна ${m.wave})`));
+    
+    // Load level
+    const level = getLevel(this._currentLevelId);
+    this._loadLevel(level);
+    
     this.hudController.showContinueButton();
     this.hudController.hideMainMenu();
     this._startBuildPhase();
     
     console.log(`[GameBootstrap] Starting gold: ${this.economyService.gold}`);
+  }
+
+  /**
+   * Select level for next run
+   */
+  selectLevel(levelId) {
+    if (!this._levelsUnlocked.includes(levelId)) {
+      console.warn(`[GameBootstrap] Level ${levelId} not unlocked`);
+      return false;
+    }
+    this._currentLevelId = levelId;
+    console.log(`[GameBootstrap] Selected level: ${levelId}`);
+    return true;
+  }
+
+  /**
+   * Load level data into scene
+   */
+  _loadLevel(level) {
+    // Update waypoints for enemy spawning
+    // Note: This requires SceneFactory to support dynamic waypoints
+    // For now, we assume SceneFactory uses LEVELS data
+    
+    // Apply level difficulty modifiers
+    if (level.waveModifiers) {
+      // Store for use in wave manager
+      this._levelModifiers = level.waveModifiers;
+    }
+    
+    // Update camera
+    if (level.camera && this.sceneFactory.getCamera()) {
+      const cam = this.sceneFactory.getCamera();
+      cam.setPosition(level.camera.x, level.camera.y, level.camera.z);
+    }
   }
 
   /**
