@@ -20,9 +20,17 @@ export class YandexBridge extends PlatformBridge {
    */
   static isYandexEnvironment() {
     try {
-      return window.location.hostname.includes('yandex') ||
-             window.location.hostname.includes('yandexgames') ||
-             window.parent !== window;
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.') ||
+                      hostname.startsWith('10.') ||
+                      hostname.includes('ngrok.io') ||
+                      hostname.endsWith('.local');
+      
+      // Robust check: presence of YaGames SDK and not on localhost
+      const hasYaGames = typeof window.YaGames !== 'undefined';
+      return hasYaGames && !isLocal;
     } catch (e) {
       return false;
     }
