@@ -178,19 +178,25 @@ export class EnemySpawner {
   _handleBossSummon(summonData, waveNumber) {
     console.log(`[EnemySpawner] Boss summons ${summonData.count} minions`);
 
+    // Check if this is a custom spawn with specific position
+    const basePosition = summonData.spawnPosition || null;
+
     for (let i = 0; i < summonData.count; i++) {
       const stats = getEnemyStats(summonData.typeId, waveNumber);
 
       // Spawn at boss position with small offset
-      const offset = {
+      const offset = basePosition ? {
+        x: basePosition.x + (Math.random() - 0.5) * 2,
+        z: basePosition.z + (Math.random() - 0.5) * 2
+      } : {
         x: (Math.random() - 0.5) * 2,
         z: (Math.random() - 0.5) * 2
       };
 
       const minionData = {
         typeId: summonData.typeId,
-        waveNumber: summonData.waveNumber,
-        hp: stats.hp,
+        waveNumber: summonData.waveNumber || waveNumber,
+        hp: summonData.customHP || stats.hp,
         speed: stats.speed,
         goldReward: Math.floor(stats.goldReward * 0.5), // Minions give less gold
         spawnOffset: offset
@@ -358,6 +364,14 @@ export class EnemySpawner {
     enemies.sort((a, b) => a.distance - b.distance);
 
     return enemies.map(e => e.enemy);
+  }
+
+  /**
+   * Get all active enemies (for ultimate system).
+   * @returns {Array<EnemyAgent>}
+   */
+  getActiveEnemies() {
+    return this._activeEnemies.filter(e => e.isActive);
   }
 
   /**

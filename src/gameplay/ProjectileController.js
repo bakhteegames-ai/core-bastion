@@ -5,18 +5,32 @@ import {
   PROJECTILE_LIFETIME_MAX,
   PROJECTILE_HIT_RADIUS
 } from '../data/balance.js';
+import { EntityPool } from './ObjectPool.js';
 
 /**
  * ProjectileController
  * Manages projectile creation, movement, and hit detection.
  * Task 2.5: Projectile and Hit Logic
  * Task 4-a: Tower Types Integration
+ * OPTIMIZATION: Uses EntityPool for projectile reuse (reduces GC pressure)
  */
 export class ProjectileController {
   constructor(app) {
     this.app = app;
     this.projectiles = [];
     this._onHitCallback = null; // External callback for hit effects (audio, VFX)
+    
+    // Initialize projectile entity pool
+    this.projectilePool = new EntityPool(
+      app,
+      (typeId, isCrit) => this._createPooledProjectileEntity(typeId, isCrit),
+      (entity) => this._resetPooledProjectileEntity(entity),
+      null, // No parent - will be added to root when active
+      30,   // Initial size
+      100   // Max size
+    );
+    
+    console.log('[ProjectileController] Initialized with EntityPool');
   }
 
   /**
@@ -71,13 +85,31 @@ export class ProjectileController {
       return null;
     }
 
-    // Create projectile entity for other types
-    const entity = this._createProjectileEntity(startPosition, typeId, isCrit);
+    // Create projectile entity from pool for other types
+    const entity = this.projectilePool.get({ typeId, isCrit }, startPosition);
+    
+    if (!entity) {
+      console.warn('[ProjectileController] Pool exhausted, falling back to direct creation');
+      // Fallback: create directly if pool is exhausted
+      const fallbackEntity = this._createProjectileEntity(startPosition, typeId, isCrit);
+      return this._createProjectileData(fallbackEntity, target, projectileSpeed, damage, onHitCallback, 
+        splashRadius, splashFalloff, slowFactor, slowDuration, chainCount, chainDecay, isCrit, enemies, typeId);
+    }
 
+    return this._createProjectileData(entity, target, projectileSpeed, damage, onHitCallback, 
+      splashRadius, splashFalloff, slowFactor, slowDuration, chainCount, chainDecay, isCrit, enemies, typeId);
+  }
+
+  /**
+   * Create projectile data object.
+   * @private
+   */
+  _createProjectileData(entity, target, speed, damage, onHitCallback, splashRadius, splashFalloff, 
+                        slowFactor, slowDuration, chainCount, chainDecay, isCrit, enemies, typeId) {
     const projectile = {
       entity: entity,
       target: target,
-      speed: projectileSpeed,
+      speed: speed,
       lifetime: 0,
       maxLifetime: PROJECTILE_LIFETIME_MAX,
       hitRadius: PROJECTILE_HIT_RADIUS,
@@ -101,7 +133,7 @@ export class ProjectileController {
   }
 
   /**
-   * Create a projectile entity with type-specific visuals.
+   * Create a projectile entity with type-specific visuals (for fallback).
    */
   _createProjectileEntity(startPosition, typeId, isCrit = false) {
     const entity = new pc.Entity(`Projectile_${typeId}`);
@@ -156,6 +188,93 @@ export class ProjectileController {
 
     this.app.root.addChild(entity);
     return entity;
+  }
+
+  /**
+   * Create a pooled projectile entity with type-specific visuals.
+   * Optimized for EntityPool reuse.
+   * @private
+   */
+  _createPooledProjectileEntity(typeId, isCrit = false) {
+    const entity = new pc.Entity(`Projectile_Pooled_${typeId}`);
+    const towerType = getTowerType(typeId);
+    const color = towerType.color || { r: 0.9, g: 0.95, b: 1.0 };
+
+    // Different shapes for different tower types
+    switch (typeId) {
+      case 'cannon':
+        entity.addComponent('render', { type: 'sphere' });
+        entity.setLocalScale(0.35, 0.35, 0.35);
+        break;
+        
+      case 'ice':
+        entity.addComponent('render', { type: 'cone' });
+        entity.setLocalScale(0.25, 0.4, 0.25);
+        entity.setLocalEulerAngles(180, 0, 0);
+        break;
+        
+      case 'sniper':
+        entity.addComponent('render', { type: 'cylinder' });
+        entity.setLocalScale(0.1, 0.5, 0.1);
+        entity.setLocalEulerAngles(90, 0, 0);
+        break;
+        
+      case 'archer':
+      default:
+        entity.addComponent('render', { type: 'sphere' });
+        entity.setLocalScale(0.2, 0.2, 0.2);
+        break;
+    }
+
+    // Material based on tower type
+    const material = new pc.StandardMaterial();
+    material.diffuse = new pc.Color(color.r, color.g, color.b);
+    material.emissive = new pc.Color(color.r * 0.5, color.g * 0.5, color.b * 0.5);
+    
+    // Store original colors for reset
+    entity._originalDiffuse = new pc.Color(color.r, color.g, color.b);
+    entity._originalEmissive = new pc.Color(color.r * 0.5, color.g * 0.5, color.b * 0.5);
+    
+    // Crit glow
+    if (isCrit) {
+      material.emissive = new pc.Color(1, 0.8, 0.2);
+      material.diffuse = new pc.Color(1, 0.9, 0.5);
+      entity._critDiffuse = new pc.Color(1, 0.9, 0.5);
+      entity._critEmissive = new pc.Color(1, 0.8, 0.2);
+    }
+    
+    material.update();
+    entity.render.material = material;
+    
+    // Initially disabled
+    entity.enabled = false;
+
+    return entity;
+  }
+
+  /**
+   * Reset a pooled projectile entity for reuse.
+   * @private
+   */
+  _resetPooledProjectileEntity(entity) {
+    if (!entity) return;
+    
+    // Reset position
+    entity.setLocalPosition(0, 0, 0);
+    
+    // Reset rotation
+    entity.setLocalEulerAngles(0, 0, 0);
+    
+    // Restore original material colors
+    const material = entity.render.material;
+    if (entity._originalDiffuse && entity._originalEmissive) {
+      material.diffuse = entity._originalDiffuse.clone();
+      material.emissive = entity._originalEmissive.clone();
+      material.update();
+    }
+    
+    // Disable entity
+    entity.enabled = false;
   }
 
   /**
@@ -444,26 +563,37 @@ export class ProjectileController {
   }
 
   /**
-   * Destroy a projectile.
+   * Destroy a projectile and return it to the pool.
    */
   _destroyProjectile(index) {
     const projectile = this.projectiles[index];
     if (projectile && projectile.entity) {
-      projectile.entity.destroy();
+      // Return entity to pool instead of destroying
+      this.projectilePool.release(projectile.entity);
     }
     this.projectiles.splice(index, 1);
   }
 
   /**
-   * Destroy all projectiles.
+   * Destroy all projectiles and return them to the pool.
    */
   destroyAll() {
     for (const projectile of this.projectiles) {
       if (projectile.entity) {
-        projectile.entity.destroy();
+        this.projectilePool.release(projectile.entity);
       }
     }
     this.projectiles = [];
+  }
+  
+  /**
+   * Get pool statistics for debugging.
+   */
+  getPoolStats() {
+    if (this.projectilePool) {
+      return this.projectilePool.getStats();
+    }
+    return null;
   }
 
   /**

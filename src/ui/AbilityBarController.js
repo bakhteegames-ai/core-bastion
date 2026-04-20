@@ -1,14 +1,18 @@
 /**
  * Ability Bar Controller
  * Controls active abilities with cooldowns and costs
+ * Updated to support Ultimate Ability System
  */
 
+import { ULTIMATE_ABILITIES } from '../gameplay/UltimateAbilitySystem.js';
+
 /**
- * Ability definitions
+ * Combined ability definitions (legacy + ultimate)
  */
 export const ABILITIES = {
-  airstrike: {
-    id: 'airstrike',
+  // Legacy abilities (kept for backward compatibility)
+  airstrike_legacy: {
+    id: 'airstrike_legacy',
     name: 'Air Strike',
     nameRu: 'Авиаудар',
     cost: 100,
@@ -18,8 +22,8 @@ export const ABILITIES = {
     descriptionRu: '100 урона по области',
     hotkey: '1'
   },
-  freeze: {
-    id: 'freeze',
+  freeze_legacy: {
+    id: 'freeze_legacy',
     name: 'Freeze',
     nameRu: 'Заморозка',
     cost: 75,
@@ -29,8 +33,8 @@ export const ABILITIES = {
     descriptionRu: 'Заморозить врагов на 3 сек',
     hotkey: '2'
   },
-  heal: {
-    id: 'heal',
+  heal_legacy: {
+    id: 'heal_legacy',
     name: 'Heal Base',
     nameRu: 'Лечение базы',
     cost: 150,
@@ -40,8 +44,8 @@ export const ABILITIES = {
     descriptionRu: 'Восстановить 3 HP базы',
     hotkey: '3'
   },
-  goldrush: {
-    id: 'goldrush',
+  goldrush_legacy: {
+    id: 'goldrush_legacy',
     name: 'Gold Rush',
     nameRu: 'Золотая лихорадка',
     cost: 0,
@@ -50,6 +54,56 @@ export const ABILITIES = {
     description: '2x gold for 10s',
     descriptionRu: '2x золота на 10 сек',
     hotkey: '4'
+  },
+  
+  // NEW ULTIMATE ABILITIES - MASTERPIECE TIER
+  meteor: {
+    id: 'meteor',
+    name: 'Meteor Shower',
+    nameRu: 'Метеоритный дождь',
+    cost: 250,
+    cooldown: 75,
+    icon: '☄️',
+    description: 'Call down 5 meteors dealing area damage',
+    descriptionRu: 'Вызвать 5 метеоров с уроном по области',
+    hotkey: '5',
+    tier: 'ultimate'
+  },
+  timewarp: {
+    id: 'timewarp',
+    name: 'Time Warp',
+    nameRu: 'Искажение времени',
+    cost: 175,
+    cooldown: 60,
+    icon: '⏰',
+    description: 'Slow all enemies by 70% for 6 seconds',
+    descriptionRu: 'Замедлить всех врагов на 70% на 6 секунд',
+    hotkey: '6',
+    tier: 'ultimate'
+  },
+  lightning: {
+    id: 'lightning',
+    name: 'Chain Lightning',
+    nameRu: 'Цепная молния',
+    cost: 125,
+    cooldown: 35,
+    icon: '⚡',
+    description: 'Lightning chains through 10 enemies dealing damage',
+    descriptionRu: 'Молния бьет по 10 врагам',
+    hotkey: '7',
+    tier: 'ultimate'
+  },
+  nuke: {
+    id: 'nuke',
+    name: 'Tactical Nuke',
+    nameRu: 'Тактическая ядерка',
+    cost: 500,
+    cooldown: 180,
+    icon: '☢️',
+    description: 'INSTANTLY destroy ALL enemies on screen',
+    descriptionRu: 'УНИЧТОЖИТЬ всех врагов на экране',
+    hotkey: '8',
+    tier: 'ultimate'
   }
 };
 
@@ -90,17 +144,21 @@ export class AbilityBarController {
     // Click handlers on ability slots
     this._setupSlotClickHandlers();
     
-    // Keyboard shortcuts (Q, W, E, R or 1-4 on numpad)
+    // Keyboard shortcuts (1-8 for abilities)
     document.addEventListener('keydown', (e) => {
       const abilityKeys = {
-        'q': 'airstrike',
-        'w': 'freeze',
-        'e': 'heal',
-        'r': 'goldrush'
+        '1': 'airstrike_legacy',
+        '2': 'freeze_legacy',
+        '3': 'heal_legacy',
+        '4': 'goldrush_legacy',
+        '5': 'meteor',
+        '6': 'timewarp',
+        '7': 'lightning',
+        '8': 'nuke'
       };
       
-      if (abilityKeys[e.key.toLowerCase()]) {
-        this.useAbility(abilityKeys[e.key.toLowerCase()]);
+      if (abilityKeys[e.key]) {
+        this.useAbility(abilityKeys[e.key]);
       }
     });
   }

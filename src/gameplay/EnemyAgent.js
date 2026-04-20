@@ -58,6 +58,19 @@ export class EnemyAgent {
     this._shieldActive = false;
     this._shieldReduction = 0;
 
+    // Stealth visibility state
+    this._isVisible = this._special !== 'stealth'; // Stealth starts invisible
+    
+    // Healer state
+    this._lastHealTime = 0;
+    
+    // Spawner state
+    this._lastSpawnTime = 0;
+    
+    // Speedster dash state
+    this._isDashing = false;
+    this._dashCooldown = 0;
+
     // Minion summon callback
     this._onSummonMinionsCallback = null;
 
@@ -480,6 +493,22 @@ export class EnemyAgent {
   }
 
   /**
+   * Get position as vector (for ultimate system).
+   * @returns {Object} Position object with x, y, z
+   */
+  getPosition() {
+    return this.position;
+  }
+
+  /**
+   * Get entity ID (for tracking in chain lightning).
+   * @returns {number} Entity GUID or hash
+   */
+  getEntityId() {
+    return this.entity?.getGuid?.() || this.entity?._guid || Math.random();
+  }
+
+  /**
    * Get collision radius.
    */
   get collisionRadius() {
@@ -590,8 +619,14 @@ export class EnemyAgent {
       }
     }
 
-    // Calculate actual speed with slow effect
-    const actualSpeed = this._speed * this._slowFactor;
+    // Update special abilities
+    this._updateSpecialAbilities(dt);
+
+    // Calculate actual speed with slow and dash effects
+    let actualSpeed = this._speed * this._slowFactor;
+    if (this._isDashing) {
+      actualSpeed *= 2.5; // Dash speed multiplier
+    }
 
     // Animation: wobble and pulse
     this._animTime += dt * 5;
@@ -630,12 +665,101 @@ export class EnemyAgent {
 
     // Set position (flyers hover above ground)
     const y = this._canFly ? 1.5 + Math.sin(this._animTime) * 0.1 : 0;
+    
+    // Apply visibility for stealth enemies
+    if (this._special === 'stealth' && !this._isVisible) {
+      // Stealth enemy - make semi-transparent
+      if (this.bodyEntity && this.bodyEntity.render) {
+        this.bodyEntity.render.material.opacity = 0.3;
+        this.bodyEntity.render.material.update();
+      }
+    }
+    
     this.entity.setLocalPosition(newX, y, newZ);
 
     // Rotate body to face movement direction
     if (this.bodyEntity) {
       const angle = Math.atan2(dx, dz) * (180 / Math.PI);
       this.bodyEntity.setLocalEulerAngles(0, angle + 45, 0);
+    }
+  }
+
+  /**
+   * Update special enemy abilities (healer, spawner, speedster).
+   */
+  _updateSpecialAbilities(dt) {
+    const currentTime = Date.now() / 1000;
+    const pos = this.position;
+
+    // Healer: heal nearby allies
+    if (this._special === 'heal') {
+      const healInterval = 2.0; // seconds
+      if (currentTime - this._lastHealTime >= healInterval) {
+        this._lastHealTime = currentTime;
+        this._healNearbyAllies();
+      }
+    }
+
+    // Spawner: spawn minions periodically
+    if (this._special === 'spawn') {
+      const spawnInterval = 4.0; // seconds
+      if (currentTime - this._lastSpawnTime >= spawnInterval) {
+        this._lastSpawnTime = currentTime;
+        this._spawnMinion();
+      }
+    }
+
+    // Speedster: random dash
+    if (this._special === 'dash') {
+      if (this._isDashing) {
+        this._dashCooldown -= dt;
+        if (this._dashCooldown <= 0) {
+          this._isDashing = false;
+        }
+      } else {
+        // Chance to dash
+        if (Math.random() < 0.01) { // 1% chance per frame
+          this._isDashing = true;
+          this._dashCooldown = 1.5; // dash for 1.5 seconds
+          console.log('[EnemyAgent] Speedster dashing!');
+        }
+      }
+    }
+  }
+
+  /**
+   * Heal nearby allies (Healer ability).
+   */
+  _healNearbyAllies() {
+    // This will be called by EnemySpawner which has access to all enemies
+    if (this._onSummonMinionsCallback) {
+      const pos = this.position;
+      // Pass heal event to spawner
+      this._onSummonMinionsCallback({
+        type: 'heal',
+        healerId: this.entity.getId(),
+        position: pos,
+        radius: 4.0,
+        amount: 3
+      });
+    }
+    console.log('[EnemyAgent] Healer healing nearby allies');
+  }
+
+  /**
+   * Spawn a minion (Spawner ability).
+   */
+  _spawnMinion() {
+    if (this._onSummonMinionsCallback) {
+      const pos = this.position;
+      console.log('[EnemyAgent] Spawner spawning minion');
+      
+      this._onSummonMinionsCallback({
+        typeId: 'grunt',
+        waveNumber: Math.max(1, Math.floor(this._maxHP / 35)),
+        count: 1,
+        spawnPosition: { x: pos.x, z: pos.z + 0.5 } // Spawn slightly ahead
+      });
     }
   }
 
@@ -708,6 +832,13 @@ export class EnemyAgent {
     // Apply armor
     actualDamage = Math.max(1, actualDamage - this._armor);
 
+    // Apply damage reduction for Juggernaut
+    if (this._special === 'heavy_armor') {
+      const dmgReduction = 0.5; // 50% damage reduction
+      actualDamage = actualDamage * (1 - dmgReduction);
+      console.log(`[EnemyAgent] Juggernaut armor reduced damage to ${actualDamage.toFixed(1)}`);
+    }
+
     this._hp -= actualDamage;
     console.log(`[EnemyAgent] ${this._typeId} took ${actualDamage.toFixed(1)} damage (${amount} - ${this._armor} armor), HP: ${this._hp.toFixed(1)}/${this._maxHP}`);
 
@@ -716,10 +847,69 @@ export class EnemyAgent {
       this._checkBossAbilities();
     }
 
+    // Check stealth visibility
+    if (this._special === 'stealth') {
+      this._updateStealthVisibility();
+    }
+
+    // Check splitter death
+    if (this._special === 'split' && this._hp <= 0) {
+      this._splitEnemy();
+      return; // Don't die yet, split first
+    }
+
     if (this._hp <= 0) {
       this._hp = 0;
       this._die();
     }
+  }
+
+  /**
+   * Update stealth enemy visibility based on HP threshold.
+   */
+  _updateStealthVisibility() {
+    const hpPercent = this._hp / this._maxHP;
+    const threshold = 0.3; // 30% HP
+    
+    if (hpPercent <= threshold && !this._isVisible) {
+      this._isVisible = true;
+      console.log('[EnemyAgent] Stealth enemy revealed!');
+      // Visual feedback - make visible
+      if (this.bodyEntity && this.bodyEntity.render) {
+        this.bodyEntity.render.material.opacity = 1.0;
+        this.bodyEntity.render.material.update();
+      }
+    }
+  }
+
+  /**
+   * Split enemy into smaller enemies when killed.
+   */
+  _splitEnemy() {
+    if (this._onSummonMinionsCallback) {
+      const splitCount = 2;
+      const childHP = Math.floor(this._maxHP * 0.4);
+      const pos = this.position;
+      
+      console.log(`[EnemyAgent] Splitter splitting into ${splitCount} children with ${childHP} HP each`);
+      
+      // Spawn child splitters or grunts
+      for (let i = 0; i < splitCount; i++) {
+        const offsetX = (Math.random() - 0.5) * 2;
+        const offsetZ = (Math.random() - 0.5) * 2;
+        
+        this._onSummonMinionsCallback({
+          typeId: 'grunt', // Could spawn smaller splitters
+          waveNumber: Math.max(1, Math.floor(this._maxHP / 30)),
+          count: 1,
+          spawnPosition: { x: pos.x + offsetX, z: pos.z + offsetZ },
+          customHP: childHP
+        });
+      }
+    }
+    
+    // Now die after splitting
+    this._die();
   }
 
   /**

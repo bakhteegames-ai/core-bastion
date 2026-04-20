@@ -1,6 +1,8 @@
 import { getWaveData } from '../data/waves.js';
 import { EnemySpawner } from './EnemySpawner.js';
 import { getEnemyComposition, getEnemyStats } from '../data/enemyTypes.js';
+import { generateModifierSchedule, getModifierForWave } from '../data/waveModifiers.js';
+import { WaveModifierSystem } from './WaveModifierSystem.js';
 
 /**
  * WaveManager
@@ -34,6 +36,11 @@ export class WaveManager {
     // Boss wave tracking
     this._isBossWave = false;
     this._bossSpawned = false;
+
+    // Wave modifier system
+    this._modifierSystem = new WaveModifierSystem();
+    this._modifierSchedule = [];
+    this._currentModifier = null;
 
     // Set up spawner callbacks
     this._setupSpawnerCallbacks();
@@ -151,6 +158,12 @@ export class WaveManager {
     // Check if boss wave
     this._isBossWave = this._currentWave % 10 === 0;
 
+    // Check for wave modifier
+    this._currentModifier = this._modifierSystem.onWaveStart(this._currentWave);
+    if (this._currentModifier) {
+      console.log(`[WaveManager] Modifier active: ${this._currentModifier.name}`);
+    }
+
     if (this._useEnemyTypes) {
       // Use new enemy type system
       this._startWaveWithEnemyTypes();
@@ -170,7 +183,20 @@ export class WaveManager {
   _startWaveWithEnemyTypes() {
     // Generate spawn queue from enemy types
     this._spawnQueue = this._spawner.generateWave(this._currentWave);
-    this._enemiesRemaining = this._spawnQueue.length;
+    
+    // Apply modifier effects to enemy count
+    const countMult = this._modifierSystem.getEnemyCountMultiplier();
+    if (countMult !== 1.0) {
+      const newCount = Math.floor(this._spawnQueue.length * countMult);
+      // Extend queue by repeating random enemies
+      while (this._spawnQueue.length < newCount) {
+        const randomEnemy = this._spawnQueue[Math.floor(Math.random() * this._spawnQueue.length)];
+        this._spawnQueue.push({ ...randomEnemy });
+      }
+      this._enemiesRemaining = this._spawnQueue.length;
+    } else {
+      this._enemiesRemaining = this._spawnQueue.length;
+    }
 
     // Create wave data summary
     this._waveData = {
@@ -179,6 +205,12 @@ export class WaveManager {
       isBossWave: this._isBossWave,
       composition: this._spawner.getWaveSummary(this._currentWave)
     };
+    
+    // Apply spawn interval modifier
+    const intervalMult = this._modifierSystem.getSpawnIntervalMultiplier();
+    if (intervalMult !== 1.0) {
+      this._waveData.spawnInterval *= intervalMult;
+    }
 
     if (this._onWaveStartCallback) {
       this._onWaveStartCallback(this._currentWave, this._waveData);
@@ -284,8 +316,13 @@ export class WaveManager {
   _spawnEnemyFromQueue() {
     if (this._enemiesSpawned >= this._spawnQueue.length) return;
 
-    const enemyData = this._spawnQueue[this._enemiesSpawned];
+    let enemyData = { ...this._spawnQueue[this._enemiesSpawned] };
     this._enemiesSpawned++;
+
+    // Apply modifier modifications to enemy data
+    if (this._modifierSystem) {
+      enemyData = this._modifierSystem.modifyEnemyData(enemyData, this._currentWave);
+    }
 
     console.log(`[WaveManager] Spawning enemy ${this._enemiesSpawned}/${this._spawnQueue.length} (${enemyData.typeId})`);
 
@@ -415,11 +452,38 @@ export class WaveManager {
     this._spawnQueue = [];
     this._isBossWave = false;
     this._bossSpawned = false;
+    this._modifierSchedule = [];
+    this._currentModifier = null;
 
     // Reset spawner
     this._spawner.reset();
+    
+    // Reset modifier system
+    this._modifierSystem.setSchedule([]);
 
     console.log('[WaveManager] Reset');
+  }
+
+  /**
+   * Set modifier schedule for current run
+   */
+  setModifierSchedule(schedule) {
+    this._modifierSchedule = schedule || [];
+    this._modifierSystem.setSchedule(schedule);
+  }
+
+  /**
+   * Get active modifier for UI
+   */
+  getActiveModifier() {
+    return this._currentModifier;
+  }
+
+  /**
+   * Get modifier system for external queries
+   */
+  get modifierSystem() {
+    return this._modifierSystem;
   }
 
   /**

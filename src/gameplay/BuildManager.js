@@ -35,14 +35,21 @@ export class BuildManager {
     const towerType = getTowerType(typeId);
     const stats = getTowerStats(typeId, 1);
 
+    // Apply cost modifier from wave system if available
+    let finalCost = towerType.cost;
+    if (window.__game && window.__game.waveManager) {
+      const costMult = window.__game.waveManager.modifierSystem.getTowerCostMultiplier();
+      finalCost = Math.round(finalCost * costMult);
+    }
+
     // Check if player can afford the tower
-    if (!this.economyService.canAfford(towerType.cost)) {
-      console.log(`[BuildManager] Not enough gold. Need ${towerType.cost}, have ${this.economyService.gold}`);
+    if (!this.economyService.canAfford(finalCost)) {
+      console.log(`[BuildManager] Not enough gold. Need ${finalCost}, have ${this.economyService.gold}`);
       return false;
     }
 
     // Deduct gold
-    const spent = this.economyService.spendGold(towerType.cost);
+    const spent = this.economyService.spendGold(finalCost);
     if (!spent) {
       console.log('[BuildManager] Failed to spend gold');
       return false;
