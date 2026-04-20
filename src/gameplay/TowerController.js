@@ -1,4 +1,5 @@
 import { getTowerType, getTowerStats } from '../data/towerTypes.js';
+import { SpatialGrid } from './SpatialGrid.js';
 
 /**
  * TowerController
@@ -6,6 +7,8 @@ import { getTowerType, getTowerStats } from '../data/towerTypes.js';
  * Task 2.4: Tower Targeting
  * Task 2.5: Projectile firing
  * Task 4-a: Tower Types Integration
+ * 
+ * OPTIMIZED: Uses SpatialGrid for O(1) enemy lookup instead of O(n)
  */
 export class TowerController {
   constructor(app, projectileController) {
@@ -13,6 +16,10 @@ export class TowerController {
     this.projectileController = projectileController;
     this.towers = []; // Array of tower data objects
     this._onFireCallback = null; // Callback for audio/VFX when tower fires
+    
+    // OPTIMIZATION: Spatial grid for fast enemy lookup
+    // Map dimensions based on typical level size (adjust as needed)
+    this.spatialGrid = new SpatialGrid(40, 40, 4); // 40x40 units, 4-unit cells
   }
   
   /**
@@ -83,10 +90,20 @@ export class TowerController {
 
   /**
    * Update all towers - find targets, rotate, and fire.
+   * OPTIMIZED: Updates spatial grid with enemy positions first
    * @param {EnemyAgent[]} enemies - Array of active enemy agents
    * @param {number} dt - Delta time in seconds
    */
   update(enemies, dt) {
+    // OPTIMIZATION: Update spatial grid with current enemy positions
+    this.spatialGrid.clear();
+    for (const enemy of enemies) {
+      if (enemy && enemy.isActive && !enemy.isDead()) {
+        this.spatialGrid.add(enemy);
+      }
+    }
+    
+    // Update all towers using optimized grid lookup
     this.towers.forEach(tower => {
       this._updateTower(tower, enemies, dt);
     });
@@ -119,34 +136,18 @@ export class TowerController {
 
   /**
    * Find the nearest enemy within range.
+   * OPTIMIZED: Uses SpatialGrid for O(1) lookup instead of O(n)
    * @returns {EnemyAgent|null}
    */
   _findNearestEnemy(tower, enemies) {
-    let nearestEnemy = null;
-    let nearestDistance = Infinity;
-
-    for (const enemy of enemies) {
-      // Skip invalid enemies
-      if (!enemy || !enemy.isActive || enemy.isDead()) {
-        continue;
-      }
-
-      const enemyPos = enemy.position;
-      if (!enemyPos) continue;
-
-      // Calculate distance
-      const dx = enemyPos.x - tower.position.x;
-      const dz = enemyPos.z - tower.position.z;
-      const distance = Math.sqrt(dx * dx + dz * dz);
-
-      // Check if in range and closer than current nearest
-      if (distance <= tower.range && distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestEnemy = enemy;
-      }
-    }
-
-    return nearestEnemy;
+    // OPTIMIZATION: Use spatial grid for fast nearest enemy lookup
+    const nearestEnemy = this.spatialGrid.findNearest(
+      tower.position.x,
+      tower.position.z,
+      tower.range
+    );
+    
+    return nearestEnemy || null;
   }
 
   /**
