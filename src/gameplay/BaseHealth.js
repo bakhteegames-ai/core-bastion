@@ -41,6 +41,7 @@ export class BaseHealth {
    * Reset HP to starting value.
    */
   reset() {
+    this._maxHP = BASE_MAX_HP;
     this._currentHP = BASE_START_HP;
     console.log(`[BaseHealth] Reset to ${this._currentHP}/${this._maxHP}`);
   }
@@ -77,6 +78,11 @@ export class BaseHealth {
    */
   setHP(value) {
     this._currentHP = Math.max(0, Math.min(this._maxHP, value));
+  }
+
+  setMaxHP(value) {
+    this._maxHP = Math.max(1, value);
+    this._currentHP = Math.min(this._currentHP, this._maxHP);
   }
 
   /**
