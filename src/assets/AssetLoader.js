@@ -19,7 +19,12 @@ export class AssetLoader {
     return new Promise((resolve) => {
       const assetList = [
         { name: 'enemy', url: '/assets/models/enemy.glb', type: 'container' },
-        { name: 'turret', url: '/assets/models/turret.glb', type: 'container' }
+        { name: 'turret', url: '/assets/models/turret.glb', type: 'container' },
+        { name: 'broken_halo_env', url: '/assets/models/broken_halo_env.glb', type: 'container' },
+        { name: 'broken_halo_reactor', url: '/assets/models/broken_halo_reactor.glb', type: 'container' },
+        { name: 'broken_halo_pad', url: '/assets/models/broken_halo_pad.glb', type: 'container' },
+        { name: 'broken_halo_beacon', url: '/assets/models/broken_halo_beacon.glb', type: 'container' },
+        { name: 'broken_halo_portal', url: '/assets/models/broken_halo_portal.glb', type: 'container' }
       ];
 
       let loadedCount = 0;

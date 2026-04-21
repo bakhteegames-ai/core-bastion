@@ -6,9 +6,10 @@ import { getLevel, DEFAULT_LEVEL_ID } from '../data/levels.js';
  * Creates the active authored battlefield from level data.
  */
 export class SceneFactory {
-  constructor(app, level = getLevel(DEFAULT_LEVEL_ID)) {
+  constructor(app, level = getLevel(DEFAULT_LEVEL_ID), assetLoader = null) {
     this.app = app;
     this.currentLevel = level;
+    this.assetLoader = assetLoader;
     this.sceneRoot = null;
     this.ground = null;
     this.camera = null;
@@ -27,6 +28,10 @@ export class SceneFactory {
     this.currentLevel = level || getLevel(DEFAULT_LEVEL_ID);
   }
 
+  setAssetLoader(assetLoader) {
+    this.assetLoader = assetLoader;
+  }
+
   createBattlefield(level = this.currentLevel) {
     this.setLevel(level);
     this.destroyBattlefield();
@@ -43,11 +48,13 @@ export class SceneFactory {
 
     this.createLighting();
     this.createGroundShell();
-    this.createFloorPlates();
-    this.createEnergyTrenches();
-    this.createFortressWalls();
-    this.createBackdropColumns();
-    this.createBridgeDetails();
+    if (!this.createEnvironmentAsset()) {
+      this.createFloorPlates();
+      this.createEnergyTrenches();
+      this.createFortressWalls();
+      this.createBackdropColumns();
+      this.createBridgeDetails();
+    }
     this.createCamera();
     this.createSkybox();
     this.createBaseMarker();
@@ -190,6 +197,28 @@ export class SceneFactory {
       })
     );
     underglow.setLocalEulerAngles(90, 0, 0);
+  }
+
+  createEnvironmentAsset() {
+    const environment = this._instantiateAsset(
+      'broken_halo_env',
+      'BrokenHaloEnvironment',
+      [0, 0, 0]
+    );
+
+    if (!environment) {
+      return false;
+    }
+
+    const silhouette = this._createBox(
+      'EnvironmentShadowPlate',
+      { x: 0, y: -0.65, z: 0 },
+      { x: 32, y: 0.08, z: 26 },
+      this._createMaterial({ r: 0.02, g: 0.03, b: 0.05 }, { opacity: 0.38 })
+    );
+    silhouette.setLocalEulerAngles(0, 0, 0);
+
+    return true;
   }
 
   createFloorPlates() {
@@ -391,6 +420,44 @@ export class SceneFactory {
     const theme = this.currentLevel.theme;
     const base = this.currentLevel.base;
 
+    const reactorAsset = this._instantiateAsset(
+      'broken_halo_reactor',
+      'CoreReactorAsset',
+      [base.x, 0.18, base.z]
+    );
+    if (reactorAsset) {
+      this.baseMarker = reactorAsset;
+
+      const innerRing = this._createTorus(
+        'CoreInnerRing',
+        { x: base.x, y: 1.45, z: base.z },
+        { x: 4.1, y: 4.1, z: 0.2 },
+        this._createMaterial(theme.coreColor, {
+          emissive: { r: theme.coreColor.r * 0.5, g: theme.coreColor.g * 0.5, b: theme.coreColor.b * 0.5 },
+          opacity: 0.5
+        }),
+        { x: 90, y: 0, z: 0 }
+      );
+
+      const outerRing = this._createTorus(
+        'CoreOuterRing',
+        { x: base.x, y: 2.2, z: base.z },
+        { x: 5.3, y: 5.3, z: 0.14 },
+        this._createMaterial(theme.neutralGlow, {
+          emissive: { r: 0.3, g: 0.26, b: 0.18 },
+          opacity: 0.34
+        }),
+        { x: 90, y: 0, z: 0 }
+      );
+
+      this._animatedRotators.push(
+        { entity: innerRing, speed: 24 },
+        { entity: outerRing, speed: -16 }
+      );
+
+      return;
+    }
+
     const platform = this._createCylinder(
       'CorePlatform',
       { x: base.x, y: 0.55, z: base.z },
@@ -489,6 +556,28 @@ export class SceneFactory {
   createSpawnMarker() {
     const theme = this.currentLevel.theme;
     const spawn = this.currentLevel.spawn;
+
+    const portalAsset = this._instantiateAsset(
+      'broken_halo_portal',
+      'BreachPortalAsset',
+      [spawn.x, 0, spawn.z]
+    );
+    if (portalAsset) {
+      this.spawnMarker = portalAsset;
+
+      const portalAura = this._createTorus(
+        'BreachPortalAura',
+        { x: spawn.x, y: 1.36, z: spawn.z },
+        { x: 3.2, y: 3.2, z: 0.18 },
+        this._createMaterial(theme.spawnColor, {
+          emissive: { r: theme.spawnColor.r * 0.6, g: theme.spawnColor.g * 0.24, b: theme.spawnColor.b * 0.12 },
+          opacity: 0.5
+        }),
+        { x: 0, y: 90, z: 0 }
+      );
+      this._animatedRotators.push({ entity: portalAura, speed: 28, axis: 'z' });
+      return;
+    }
 
     const pedestal = this._createCylinder(
       'BreachPortalBase',
@@ -623,7 +712,11 @@ export class SceneFactory {
             ? theme.coreColor
             : theme.pathEdgeColor;
 
-      const column = this._createBox(
+      const column = this._instantiateAsset(
+        'broken_halo_beacon',
+        beacon.name,
+        [beacon.x, beacon.y - 0.9, beacon.z]
+      ) || this._createBox(
         beacon.name,
         { x: beacon.x, y: beacon.y, z: beacon.z },
         { x: 0.26, y: 1.8, z: 0.26 },
@@ -635,9 +728,20 @@ export class SceneFactory {
 
       const tip = this._createSphere(
         `${beacon.name}_Tip`,
-        { x: beacon.x, y: beacon.y + 1.1, z: beacon.z },
-        { x: 0.2, y: 0.2, z: 0.2 },
+        { x: beacon.x, y: beacon.y + 1.25, z: beacon.z },
+        { x: 0.16, y: 0.16, z: 0.16 },
         this._createMaterial(color, { emissive: color })
+      );
+
+      const aura = this._createTorus(
+        `${beacon.name}_Aura`,
+        { x: beacon.x, y: beacon.y + 1.02, z: beacon.z },
+        { x: 0.42, y: 0.42, z: 0.08 },
+        this._createMaterial(color, {
+          emissive: { r: color.r * 0.38, g: color.g * 0.38, b: color.b * 0.38 },
+          opacity: 0.45
+        }),
+        { x: 90, y: 0, z: 0 }
       );
 
       this._animatedPulses.push({
@@ -647,6 +751,7 @@ export class SceneFactory {
         speed: 3.0,
         phase: index * 0.45
       });
+      this._animatedRotators.push({ entity: aura, speed: index % 2 === 0 ? 24 : -24 });
 
       column.setLocalEulerAngles(0, index * 20, 0);
     });
@@ -657,9 +762,15 @@ export class SceneFactory {
 
     this.currentLevel.buildSlots.forEach((slot, index) => {
       const markerColor = this._getSlotColor(slot.role, theme);
-      const marker = this._createCylinder(
+      const slotY = slot.y ?? this.currentLevel.battlefield.padHeight;
+      const marker = this._instantiateAsset(
+        'broken_halo_pad',
         `BuildSlot_${slot.id}`,
-        { x: slot.x, y: slot.y ?? this.currentLevel.battlefield.padHeight, z: slot.z },
+        [slot.x, slotY, slot.z],
+        slot.role === 'perch' ? [1.1, 1.1, 1.1] : [1, 1, 1]
+      ) || this._createCylinder(
+        `BuildSlot_${slot.id}`,
+        { x: slot.x, y: slotY, z: slot.z },
         { x: 1.85, y: 0.34, z: 1.85 },
         this._createMaterial(theme.metalAccent, {
           specular: theme.neutralGlow,
@@ -814,6 +925,27 @@ export class SceneFactory {
     entity.setLocalPosition(x, y, z);
     this.sceneRoot.addChild(entity);
     return entity;
+  }
+
+  _instantiateAsset(assetName, entityName, position, scale = [1, 1, 1], rotation = [0, 0, 0]) {
+    if (!this.assetLoader?.isLoaded?.()) {
+      return null;
+    }
+
+    const renderEntity = this.assetLoader.createEntityFromModel(assetName);
+    if (!renderEntity) {
+      return null;
+    }
+
+    const wrapper = new pc.Entity(entityName);
+    wrapper.setLocalPosition(position[0], position[1], position[2]);
+    wrapper.setLocalScale(scale[0], scale[1], scale[2]);
+    wrapper.setLocalEulerAngles(rotation[0], rotation[1], rotation[2]);
+    renderEntity.setLocalPosition(0, 0, 0);
+    renderEntity.setLocalScale(1, 1, 1);
+    wrapper.addChild(renderEntity);
+    this.sceneRoot.addChild(wrapper);
+    return wrapper;
   }
 
   _createBox(name, position, scale, material, rotation = null) {

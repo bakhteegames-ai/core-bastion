@@ -34,10 +34,10 @@ const BROKEN_HALO = {
     wallHeight: 3.2
   },
   camera: {
-    x: 0,
-    y: 24,
-    z: 15,
-    target: { x: 2, y: 0, z: 1 }
+    x: -4.5,
+    y: 15.5,
+    z: 20.5,
+    target: { x: 2.8, y: 0.65, z: 1.2 }
   },
   spawn: { x: -14, z: 8 },
   base: { x: 11, z: -5 },

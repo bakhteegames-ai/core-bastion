@@ -137,6 +137,8 @@ export class GameBootstrap {
     console.log('[GameBootstrap] Loading 3D models...');
     await this.assetLoader.loadAll();
     console.log('[GameBootstrap] 3D models loaded');
+    this.sceneFactory.setAssetLoader(this.assetLoader);
+    this.sceneFactory.createBattlefield(this._currentLevel);
 
     // Initialize build manager (with asset loader for towers)
     this.buildManager = new BuildManager(this.app, this.economyService, this.sceneFactory, this.assetLoader);
