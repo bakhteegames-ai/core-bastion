@@ -1,5 +1,6 @@
 import { getEnemyComposition, getEnemyStats, getEnemyType } from '../data/enemyTypes.js';
 import { EnemyAgent } from './EnemyAgent.js';
+import { ObjectPool } from './ObjectPool.js';
 
 /**
  * EnemySpawner
@@ -10,6 +11,9 @@ export class EnemySpawner {
   constructor(app, options = {}) {
     this.app = app;
     this.assetLoader = options.assetLoader || null;
+    this._enemyPools = new Map();
+    this._poolInitialSize = options.enemyPoolInitialSize || 6;
+    this._poolMaxSize = options.enemyPoolMaxSize || 160;
 
     // Callbacks
     this._onEnemySpawnedCallback = null;
@@ -22,6 +26,38 @@ export class EnemySpawner {
     this._totalSpawned = 0;
     this._totalKilled = 0;
     this._totalLeaked = 0;
+  }
+
+  _getPool(typeId) {
+    if (this._enemyPools.has(typeId)) {
+      return this._enemyPools.get(typeId);
+    }
+
+    const pool = new ObjectPool(
+      () => new EnemyAgent(this.app, {
+        typeId,
+        waveNumber: 1,
+        assetLoader: this.assetLoader
+      }),
+      (enemy) => enemy.reset(),
+      this._poolInitialSize,
+      this._poolMaxSize
+    );
+
+    this._enemyPools.set(typeId, pool);
+    return pool;
+  }
+
+  _removeActiveEnemy(enemy) {
+    const index = this._activeEnemies.indexOf(enemy);
+    if (index === -1) return;
+    this._activeEnemies[index] = this._activeEnemies[this._activeEnemies.length - 1];
+    this._activeEnemies.pop();
+  }
+
+  _releaseEnemy(enemy) {
+    if (!enemy) return;
+    this._getPool(enemy.typeId || 'grunt').release(enemy);
   }
 
   /**
@@ -88,14 +124,18 @@ export class EnemySpawner {
    * @returns {EnemyAgent} The spawned enemy
    */
   spawnEnemy(enemyData) {
-    const enemy = new EnemyAgent(this.app, {
-      typeId: enemyData.typeId || 'grunt',
+    const typeId = enemyData.typeId || 'grunt';
+    const pool = this._getPool(typeId);
+    const enemy = pool.get({
+      ...enemyData,
+      typeId,
       waveNumber: enemyData.waveNumber || 1,
-      hp: enemyData.hp,
-      speed: enemyData.speed,
-      goldReward: enemyData.goldReward,
       assetLoader: this.assetLoader
     });
+
+    if (!enemy) {
+      return null;
+    }
 
     // Set up callbacks
     enemy.setOnDeath((e) => this._handleEnemyDeath(e));
