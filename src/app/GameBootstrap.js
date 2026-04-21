@@ -147,10 +147,21 @@ export class GameBootstrap {
     this.towerController = new TowerController(this.app, this.projectileController);
 
     // Initialize wave manager
-    this.waveManager = new WaveManager(this.app);
+    this.waveManager = new WaveManager(this.app, {
+      assetLoader: this.assetLoader
+    });
     this.buildManager.setWaveManager(this.waveManager);
+    this.waveManager.spawner.setOnEnemySpawned((enemy) => {
+      this._registerEnemy(enemy, true);
+    });
     this.waveManager.setOnSpawnEnemy((enemyData) => {
       this._spawnEnemy(enemyData);
+    });
+    this.waveManager.setOnEnemyDeath((enemy) => {
+      this._onEnemyDeath(enemy);
+    });
+    this.waveManager.setOnEnemyLeak((enemy) => {
+      this._onEnemyLeak(enemy);
     });
     this.waveManager.setOnWaveComplete((waveNumber) => {
       this._onWaveComplete(waveNumber);
@@ -444,6 +455,10 @@ export class GameBootstrap {
    * Spawn an enemy with wave data.
    */
   _spawnEnemy(enemyData) {
+    if (enemyData.enemy) {
+      return enemyData.enemy;
+    }
+
     const typeId = enemyData.typeId || 'grunt';
     const typeStats = getEnemyStats(typeId, this.waveManager.currentWave);
     
@@ -463,6 +478,16 @@ export class GameBootstrap {
       this._onEnemyDeath(e);
     });
 
+    this._registerEnemy(enemy, false);
+    return enemy;
+  }
+
+  _registerEnemy(enemy, managedBySpawner = false) {
+    if (!enemy || this.enemies.includes(enemy)) {
+      return;
+    }
+
+    enemy._managedBySpawner = managedBySpawner;
     this.enemies.push(enemy);
   }
 
@@ -486,7 +511,9 @@ export class GameBootstrap {
     }
 
     this._removeEnemyReference(enemy);
-    this.waveManager.onEnemyRemoved();
+    if (!enemy?._managedBySpawner) {
+      this.waveManager.onEnemyRemoved();
+    }
   }
 
   _onEnemyDeath(enemy) {
@@ -512,7 +539,9 @@ export class GameBootstrap {
     }
 
     this._removeEnemyReference(enemy);
-    this.waveManager.onEnemyRemoved();
+    if (!enemy?._managedBySpawner) {
+      this.waveManager.onEnemyRemoved();
+    }
   }
 
   _onWaveStart(waveNumber) {
@@ -597,14 +626,14 @@ export class GameBootstrap {
       return;
     }
 
-    if (this.stateMachine.isInState(GameState.WAVE_ACTIVE)) {
-      this.waveManager.update(dt);
-
-      for (const enemy of this.enemies) {
-        if (enemy.isActive) {
-          enemy.update(dt);
+      if (this.stateMachine.isInState(GameState.WAVE_ACTIVE)) {
+        this.waveManager.update(dt);
+  
+        for (const enemy of this.enemies) {
+          if (enemy.isActive && !enemy._managedBySpawner) {
+            enemy.update(dt);
+          }
         }
-      }
 
       this.towerController.update(this.enemies, dt);
       this.projectileController.update(dt);
@@ -787,7 +816,9 @@ export class GameBootstrap {
     this.hudController.hideDefeat();
 
     for (const enemy of this.enemies) {
-      enemy.destroy();
+      if (!enemy._managedBySpawner) {
+        enemy.destroy();
+      }
     }
     this.enemies = [];
 
