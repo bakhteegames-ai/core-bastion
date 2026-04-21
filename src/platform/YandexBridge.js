@@ -19,22 +19,28 @@ export class YandexBridge extends PlatformBridge {
     return true;
   }
 
+  static _isLocalHost(hostname) {
+    return hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.includes('ngrok.io') ||
+      hostname.endsWith('.local');
+  }
+
   /**
    * Check if running inside Yandex Games environment.
+   * Allows either injected SDK presence or Yandex-hosted URL.
    * @returns {boolean}
    */
   static isYandexEnvironment() {
     try {
-      const hostname = window.location.hostname;
-      const isLocal = hostname === 'localhost' || 
-                      hostname === '127.0.0.1' || 
-                      hostname.startsWith('192.168.') ||
-                      hostname.startsWith('10.') ||
-                      hostname.includes('ngrok.io') ||
-                      hostname.endsWith('.local');
-      
+      const hostname = window.location.hostname || '';
+      const href = window.location.href || '';
+      const isLocal = YandexBridge._isLocalHost(hostname);
       const hasYaGames = typeof window.YaGames !== 'undefined';
-      return hasYaGames && !isLocal;
+      const isYandexHost = hostname.includes('yandex') || href.includes('yandex.ru/games');
+      return !isLocal && (hasYaGames || isYandexHost);
     } catch (e) {
       return false;
     }
@@ -45,20 +51,28 @@ export class YandexBridge extends PlatformBridge {
       return;
     }
 
-    if (!YandexBridge.isYandexEnvironment()) {
-      console.log('[YandexBridge] Not in Yandex environment');
-      this._initialized = true;
-      return;
-    }
-
     try {
+      const hostname = window.location.hostname || '';
+      const isLocal = YandexBridge._isLocalHost(hostname);
+      if (isLocal) {
+        console.log('[YandexBridge] Local environment detected, skipping SDK init');
+        this._initialized = true;
+        return;
+      }
+
       await this._loadSDK();
+      if (!window.YaGames || typeof window.YaGames.init !== 'function') {
+        console.warn('[YandexBridge] YaGames SDK unavailable after load');
+        this._initialized = true;
+        return;
+      }
+
       this._ysdk = await window.YaGames.init();
       console.log('[YandexBridge] Yandex SDK initialized');
       this._initialized = true;
     } catch (e) {
       console.error('[YandexBridge] Failed to initialize:', e);
-      throw e;
+      this._initialized = true;
     }
   }
 
@@ -82,9 +96,17 @@ export class YandexBridge extends PlatformBridge {
         return;
       }
 
+      const existing = document.querySelector('script[data-core-bastion-yandex-sdk="1"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Failed to load Yandex SDK script')), { once: true });
+        return;
+      }
+
       const script = document.createElement('script');
       script.src = 'https://yandex.ru/games/sdk/v2';
       script.async = true;
+      script.dataset.coreBastionYandexSdk = '1';
       script.onload = () => resolve();
       script.onerror = () => reject(new Error('Failed to load Yandex SDK script'));
       document.head.appendChild(script);
@@ -246,7 +268,7 @@ export class YandexBridge extends PlatformBridge {
     return false;
   }
 
-  async getProducts(productIds) {
+  async getProducts(_productIds) {
     if (!this._ysdk || !this._ysdk.payments) {
       return [];
     }
