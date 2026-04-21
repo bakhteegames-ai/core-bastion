@@ -4,7 +4,7 @@
  * Implements exact PlatformBridge API with stub behavior.
  */
 
-import { PlatformBridge } from './PlatformBridge.js';
+import { PlatformBridge } from './PlatformBridgeBase.js';
 
 export class EditorBridge extends PlatformBridge {
   constructor() {
@@ -57,9 +57,12 @@ export class EditorBridge extends PlatformBridge {
    */
   async saveProgress(payload) {
     try {
-      const data = { bestWave: payload.bestWave };
+      const data = {
+        bestWave: typeof payload?.bestWave === 'number' ? payload.bestWave : 0,
+        data: payload?.data && typeof payload.data === 'object' ? payload.data : {}
+      };
       localStorage.setItem(this._storageKey, JSON.stringify(data));
-      console.log(`[EditorBridge] saveProgress({ bestWave: ${payload.bestWave} })`);
+      console.log(`[EditorBridge] saveProgress({ bestWave: ${data.bestWave} })`);
       return { ok: true };
     } catch (e) {
       console.error('[EditorBridge] Failed to save progress:', e);
@@ -77,13 +80,14 @@ export class EditorBridge extends PlatformBridge {
       if (saved) {
         const data = JSON.parse(saved);
         const bestWave = typeof data.bestWave === 'number' ? data.bestWave : 0;
+        const extraData = data?.data && typeof data.data === 'object' ? data.data : {};
         console.log(`[EditorBridge] loadProgress() -> bestWave: ${bestWave}`);
-        return { ok: true, data: { bestWave } };
+        return { ok: true, data: { bestWave, data: extraData } };
       }
-      return { ok: true, data: { bestWave: 0 } };
+      return { ok: true, data: { bestWave: 0, data: {} } };
     } catch (e) {
       console.error('[EditorBridge] Failed to load progress:', e);
-      return { ok: false, data: { bestWave: 0 }, reason: e.message };
+      return { ok: false, data: { bestWave: 0, data: {} }, reason: e.message };
     }
   }
 
