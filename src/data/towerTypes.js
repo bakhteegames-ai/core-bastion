@@ -1,13 +1,12 @@
 /**
- * Tower Types Definition
- * 5 unique tower types with different abilities
+ * Tower types and level scaling.
  */
 
 export const TowerTypes = {
   ARCHER: {
     id: 'archer',
     name: 'Archer Tower',
-    nameRu: 'Башня лучников',
+    nameRu: 'Лучевая башня',
     cost: 100,
     damage: 15,
     range: 6.0,
@@ -16,7 +15,7 @@ export const TowerTypes = {
     special: null,
     color: { r: 0.4, g: 0.6, b: 0.3 },
     description: 'Fast attack, low damage',
-    descriptionRu: 'Быстрая атака, низкий урон'
+    descriptionRu: 'Высокая скорострельность и слабый урон'
   },
   CANNON: {
     id: 'cannon',
@@ -32,12 +31,12 @@ export const TowerTypes = {
     special: 'splash',
     color: { r: 0.6, g: 0.5, b: 0.3 },
     description: 'AOE splash damage',
-    descriptionRu: 'Взрывной урон по области'
+    descriptionRu: 'Мощный взрывной урон по области'
   },
   ICE: {
     id: 'ice',
-    name: 'Ice Tower',
-    nameRu: 'Ледяная башня',
+    name: 'Cryo Tower',
+    nameRu: 'Крио-башня',
     cost: 150,
     damage: 8,
     range: 5.0,
@@ -52,8 +51,8 @@ export const TowerTypes = {
   },
   LIGHTNING: {
     id: 'lightning',
-    name: 'Lightning Tower',
-    nameRu: 'Молниевая башня',
+    name: 'Arc Tower',
+    nameRu: 'Дуговая башня',
     cost: 250,
     damage: 25,
     range: 5.5,
@@ -64,12 +63,12 @@ export const TowerTypes = {
     special: 'chain',
     color: { r: 0.6, g: 0.3, b: 0.9 },
     description: 'Chain lightning hits 3 targets',
-    descriptionRu: 'Цепная молния бьёт 3 цели'
+    descriptionRu: 'Цепная дуга бьет до трех целей'
   },
   SNIPER: {
     id: 'sniper',
-    name: 'Sniper Tower',
-    nameRu: 'Снайперская башня',
+    name: 'Relay Tower',
+    nameRu: 'Релейная башня',
     cost: 300,
     damage: 100,
     range: 10.0,
@@ -80,11 +79,10 @@ export const TowerTypes = {
     special: 'crit',
     color: { r: 0.5, g: 0.2, b: 0.2 },
     description: 'Long range, 25% crit chance',
-    descriptionRu: 'Дальний радиус, 25% крит'
+    descriptionRu: 'Большая дальность и 25% шанс критического урона'
   }
 };
 
-// Level multipliers
 const LEVEL_MULTIPLIERS = {
   1: { damage: 1.0, range: 1.0, fireRate: 1.0 },
   2: { damage: 1.25, range: 1.15, fireRate: 1.1 },
@@ -93,25 +91,19 @@ const LEVEL_MULTIPLIERS = {
   5: { damage: 2.0, range: 1.6, fireRate: 1.4 }
 };
 
-/**
- * Get tower type by ID
- */
 export function getTowerType(typeId) {
   for (const key in TowerTypes) {
     if (TowerTypes[key].id === typeId) {
       return TowerTypes[key];
     }
   }
-  return TowerTypes.ARCHER; // Default fallback
+  return TowerTypes.ARCHER;
 }
 
-/**
- * Get tower stats adjusted for level
- */
 export function getTowerStats(typeId, level = 1) {
   const base = getTowerType(typeId);
   const mult = LEVEL_MULTIPLIERS[Math.min(level, 5)] || LEVEL_MULTIPLIERS[5];
-  
+
   return {
     ...base,
     level,
@@ -122,17 +114,11 @@ export function getTowerStats(typeId, level = 1) {
   };
 }
 
-/**
- * Calculate upgrade cost
- */
 export function getUpgradeCost(baseCost, currentLevel) {
   if (currentLevel >= 5) return 0;
   return Math.round(baseCost * 0.5 * currentLevel);
 }
 
-/**
- * Get sell value
- */
 export function getSellValue(baseCost, currentLevel) {
   let totalInvested = baseCost;
   for (let i = 1; i < currentLevel; i++) {
@@ -141,9 +127,6 @@ export function getSellValue(baseCost, currentLevel) {
   return Math.round(totalInvested * 0.5);
 }
 
-/**
- * Get all tower types
- */
 export function getAllTowerTypes() {
   return Object.values(TowerTypes);
 }

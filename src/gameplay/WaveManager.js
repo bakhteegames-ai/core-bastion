@@ -35,6 +35,7 @@ export class WaveManager {
     this._modifierSystem = new WaveModifierSystem();
     this._modifierSchedule = [];
     this._currentModifier = null;
+    this._wavePlan = options.wavePlan || {};
 
     this._setupSpawnerCallbacks();
   }
@@ -104,6 +105,12 @@ export class WaveManager {
     this._onEnemyLeakCallback = callback;
   }
 
+  setLevelContext(level = {}) {
+    this._wavePlan = level.wavePlan || {};
+    this._spawner.setWaypoints(level.waypoints || []);
+    this._spawner.setWavePlan(this._wavePlan);
+  }
+
   startNextWave() {
     if (this._waveActive) {
       console.warn('[WaveManager] Wave already active');
@@ -171,6 +178,10 @@ export class WaveManager {
   }
 
   _calculateSpawnInterval(waveNumber) {
+    const authoredWave = this._wavePlan?.[waveNumber];
+    if (authoredWave?.spawnInterval) {
+      return authoredWave.spawnInterval;
+    }
     return Math.max(0.5, 1.2 - (waveNumber - 1) * 0.05);
   }
 

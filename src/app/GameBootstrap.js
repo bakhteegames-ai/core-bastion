@@ -23,7 +23,7 @@ import { ENEMY_LEAK_DAMAGE } from '../data/balance.js';
 import { getAllTowerTypes, getTowerType, getTowerStats } from '../data/towerTypes.js';
 import { getAllEnemyTypes, getEnemyType, getEnemyStats } from '../data/enemyTypes.js';
 import { PurchaseService } from '../gameplay/PurchaseService.js';
-import { getLevel, getAllLevels } from '../data/levels.js';
+import { getLevel, getAllLevels, getLevelIds, DEFAULT_LEVEL_ID } from '../data/levels.js';
 import { generateModifierSchedule } from '../data/waveModifiers.js';
 
 // Meta progression system
@@ -86,8 +86,9 @@ export class GameBootstrap {
     this._goldRushTimer = 0;
     
     // Level selection
-    this._currentLevelId = 'meadow';
-    this._levelsUnlocked = ['meadow']; // Persist in save later
+    this._currentLevelId = DEFAULT_LEVEL_ID;
+    this._currentLevel = getLevel(DEFAULT_LEVEL_ID);
+    this._levelsUnlocked = getLevelIds();
     
     // Modifier schedule
     this._modifierSchedule = [];
@@ -119,7 +120,7 @@ export class GameBootstrap {
     this.stateMachine.transition(GameState.READY);
 
     // Initialize economy
-    this.economyService = new EconomyService(STARTING_GOLD);
+    this.economyService = new EconomyService(this._getStartingGold());
 
     // Initialize base health
     this.baseHealth = new BaseHealth();
@@ -128,8 +129,8 @@ export class GameBootstrap {
     });
 
     // Create battlefield scene
-    this.sceneFactory = new SceneFactory(this.app);
-    this.sceneFactory.createBattlefield();
+    this.sceneFactory = new SceneFactory(this.app, this._currentLevel);
+    this.sceneFactory.createBattlefield(this._currentLevel);
 
     // Initialize asset loader and load models
     this.assetLoader = new AssetLoader(this.app);
@@ -148,8 +149,11 @@ export class GameBootstrap {
 
     // Initialize wave manager
     this.waveManager = new WaveManager(this.app, {
-      assetLoader: this.assetLoader
+      assetLoader: this.assetLoader,
+      waypoints: this._currentLevel.waypoints,
+      wavePlan: this._currentLevel.wavePlan
     });
+    this.waveManager.setLevelContext(this._currentLevel);
     this.buildManager.setWaveManager(this.waveManager);
     this.waveManager.spawner.setOnEnemySpawned((enemy) => {
       this._registerEnemy(enemy, true);
@@ -299,7 +303,8 @@ export class GameBootstrap {
       return;
     }
     this.stateMachine.transition(GameState.BUILD_PHASE);
-    const buildPhaseDuration = Math.max(1, BUILD_PHASE_DURATION + (this._buildPhaseBonus || 0));
+    const baseBuildPhaseDuration = this._currentLevel?.pacing?.buildPhaseDuration ?? BUILD_PHASE_DURATION;
+    const buildPhaseDuration = Math.max(1, baseBuildPhaseDuration + (this._buildPhaseBonus || 0));
     this.buildPhaseTimer = buildPhaseDuration;
     this.hudController.setTimerVisible(true);
     this.hudController.setTimerValue(buildPhaseDuration);
@@ -467,7 +472,8 @@ export class GameBootstrap {
       hp: enemyData.hp ?? typeStats.hp,
       speed: enemyData.speed ?? typeStats.speed,
       goldReward: enemyData.goldReward ?? typeStats.goldReward,
-      assetLoader: this.assetLoader
+      assetLoader: this.assetLoader,
+      waypoints: this._currentLevel?.waypoints
     });
 
     enemy.setOnReachEndpoint((e) => {
@@ -599,6 +605,8 @@ export class GameBootstrap {
   }
 
   onUpdate(dt) {
+    this.sceneFactory?.update(dt);
+
     if (!this._gameStarted) {
       return;
     }
@@ -673,15 +681,14 @@ export class GameBootstrap {
     this._shardsEarnedThisRun = 0;
     this._buildPhaseBonus = 0;
     this.baseHealth.reset();
-    this.economyService.reset(STARTING_GOLD);
+    this.economyService.reset(this._getStartingGold());
     this.runModifier.applyToRun(this);
     
     this._modifierSchedule = generateModifierSchedule(3, 5);
     this.waveManager.setModifierSchedule(this._modifierSchedule);
     console.log('[GameBootstrap] Modifier schedule:', this._modifierSchedule.map(m => `${m.modifier.name} (волна ${m.wave})`));
     
-    const level = getLevel(this._currentLevelId);
-    this._loadLevel(level);
+    this._loadLevel(getLevel(this._currentLevelId));
     
     this.hudController.showContinueButton();
     this.hudController.hideMainMenu();
@@ -697,18 +704,34 @@ export class GameBootstrap {
       return false;
     }
     this._currentLevelId = levelId;
+    this._loadLevel(getLevel(levelId));
     console.log(`[GameBootstrap] Selected level: ${levelId}`);
     return true;
   }
 
   _loadLevel(level) {
+    this._currentLevel = level;
+
     if (level.waveModifiers) {
       this._levelModifiers = level.waveModifiers;
     }
-    
-    if (level.camera && this.sceneFactory.getCamera()) {
+
+    if (this.waveManager) {
+      this.waveManager.setLevelContext(level);
+    }
+
+    if (this.sceneFactory) {
+      const needsRebuild = !this.sceneFactory.sceneRoot || this.sceneFactory.currentLevel?.id !== level.id;
+      this.sceneFactory.setLevel(level);
+      if (needsRebuild) {
+        this.sceneFactory.createBattlefield(level);
+      }
+    }
+
+    if (level.camera && this.sceneFactory?.getCamera()) {
       const cam = this.sceneFactory.getCamera();
       cam.setPosition(level.camera.x, level.camera.y, level.camera.z);
+      cam.lookAt(level.camera.target.x, level.camera.target.y, level.camera.target.z);
     }
   }
 
@@ -827,7 +850,7 @@ export class GameBootstrap {
     this.projectileController.clearProjectiles();
     this.waveManager.reset();
     this.baseHealth.reset();
-    this.economyService.reset(STARTING_GOLD);
+    this.economyService.reset(this._getStartingGold());
     this._buildPhaseBonus = 0;
 
     this.stateMachine.transition(GameState.READY);
@@ -1019,5 +1042,9 @@ export class GameBootstrap {
     if (info.canClaim) {
       console.log('[GameBootstrap] Daily reward available!', info.nextReward);
     }
+  }
+
+  _getStartingGold() {
+    return this._currentLevel?.pacing?.startingGold ?? STARTING_GOLD;
   }
 }

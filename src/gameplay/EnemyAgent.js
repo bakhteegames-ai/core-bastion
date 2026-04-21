@@ -1,5 +1,4 @@
 import * as pc from 'playcanvas';
-import { WAYPOINTS } from '../data/level.js';
 import { ENEMY_COLLISION_RADIUS } from '../data/balance.js';
 import { getEnemyType, getEnemyStats } from '../data/enemyTypes.js';
 
@@ -16,7 +15,7 @@ export class EnemyAgent {
     this.app = app;
     this.entity = null;
     this.assetLoader = options.assetLoader || null;
-    this._waypoints = WAYPOINTS;
+    this._waypoints = options.waypoints || [];
     this._onReachEndpointCallback = null;
     this._onDeathCallback = null;
     this._onSummonMinionsCallback = null;
@@ -37,6 +36,7 @@ export class EnemyAgent {
     const maxHP = options.maxHP ?? options.hp ?? stats.hp;
 
     this.assetLoader = options.assetLoader || this.assetLoader;
+    this._waypoints = options.waypoints || this._waypoints;
     this._typeId = typeId;
     this._hp = options.hp ?? maxHP;
     this._maxHP = maxHP;
@@ -83,6 +83,7 @@ export class EnemyAgent {
 
   _applySpawnState() {
     if (!this.entity) return;
+    if (!this._waypoints?.length) return;
 
     const spawnY = this._canFly ? 1.5 : 0;
     this.entity.enabled = true;

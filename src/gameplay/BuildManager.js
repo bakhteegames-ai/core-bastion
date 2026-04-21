@@ -62,9 +62,10 @@ export class BuildManager {
 
     // Get slot position
     const slotData = slotEntity.slotData;
+    const slotY = slotData.y ?? 0;
     const position = {
       x: slotData.x,
-      y: 0, // Base at ground level
+      y: slotY,
       z: slotData.z
     };
 
@@ -78,7 +79,7 @@ export class BuildManager {
     const towerData = {
       slotId: slotId,
       entity: tower,
-      position: { x: position.x, y: 1.2, z: position.z }, // Firing position at top
+      position: { x: position.x, y: position.y + 1.2, z: position.z },
       typeId: typeId,
       level: 1
     };
@@ -182,7 +183,7 @@ export class BuildManager {
    */
   _createTowerEntity(slotId, position, typeId = 'archer') {
     const tower = new pc.Entity(`Tower_${typeId}_${slotId}`);
-    tower.setLocalPosition(position.x, 0, position.z);
+    tower.setLocalPosition(position.x, position.y, position.z);
     tower.typeId = typeId;
 
     // Try to use GLB model first
@@ -214,7 +215,7 @@ export class BuildManager {
    */
   _createProceduralTower(slotId, position, typeId = 'archer') {
     const tower = new pc.Entity(`Tower_${typeId}_${slotId}`);
-    tower.setLocalPosition(position.x, 0, position.z);
+    tower.setLocalPosition(position.x, position.y, position.z);
     tower.typeId = typeId;
 
     const towerType = getTowerType(typeId);
@@ -477,7 +478,7 @@ export class BuildManager {
   _createRangeIndicator(tower, position, range) {
     const ring = new pc.Entity(`TowerRange_${tower.name}`);
     ring.addComponent('render', { type: 'torus' });
-    ring.setLocalPosition(position.x, 0.05, position.z);
+    ring.setLocalPosition(position.x, position.y + 0.05, position.z);
     ring.setLocalScale(range * 2, range * 2, 0.3);
     ring.setLocalEulerAngles(90, 0, 0);
 

@@ -1,17 +1,16 @@
 /**
  * Live production ability definitions.
- * This is the single source of truth for the shipped ability bar + runtime.
  */
 export const ABILITIES = {
   airstrike: {
     id: 'airstrike',
     name: 'Air Strike',
-    nameRu: 'Авиаудар',
+    nameRu: 'Авиоудар',
     cost: 100,
     cooldown: 60,
-    icon: '💣',
+    icon: 'AS',
     description: 'Deal 50 damage to all enemies',
-    descriptionRu: 'Нанести 50 урона всем врагам',
+    descriptionRu: 'Наносит 50 урона всем врагам',
     hotkey: '1',
     effect: {
       type: 'global_damage',
@@ -24,9 +23,9 @@ export const ABILITIES = {
     nameRu: 'Заморозка',
     cost: 75,
     cooldown: 45,
-    icon: '❄️',
+    icon: 'FR',
     description: 'Slow all enemies by 70% for 3s',
-    descriptionRu: 'Замедлить всех врагов на 70% на 3 сек',
+    descriptionRu: 'Замедляет всех врагов на 70% на 3 секунды',
     hotkey: '2',
     effect: {
       type: 'global_slow',
@@ -36,13 +35,13 @@ export const ABILITIES = {
   },
   heal: {
     id: 'heal',
-    name: 'Heal Base',
-    nameRu: 'Лечение базы',
+    name: 'Heal Core',
+    nameRu: 'Ремонт ядра',
     cost: 150,
     cooldown: 90,
-    icon: '❤️',
+    icon: 'HL',
     description: 'Restore 3 base HP',
-    descriptionRu: 'Восстановить 3 HP базы',
+    descriptionRu: 'Восстанавливает 3 HP ядра',
     hotkey: '3',
     effect: {
       type: 'base_heal',
@@ -52,12 +51,12 @@ export const ABILITIES = {
   goldrush: {
     id: 'goldrush',
     name: 'Gold Rush',
-    nameRu: 'Золотая лихорадка',
+    nameRu: 'Золотой прилив',
     cost: 0,
     cooldown: 120,
-    icon: '💰',
+    icon: 'GR',
     description: '2x gold for 10s',
-    descriptionRu: '2x золота на 10 сек',
+    descriptionRu: 'Дает 2x золота на 10 секунд',
     hotkey: '4',
     effect: {
       type: 'gold_multiplier',

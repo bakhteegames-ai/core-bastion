@@ -11,6 +11,8 @@ export class EnemySpawner {
   constructor(app, options = {}) {
     this.app = app;
     this.assetLoader = options.assetLoader || null;
+    this._waypoints = options.waypoints || [];
+    this._wavePlan = options.wavePlan || {};
     this._enemyPools = new Map();
     this._poolInitialSize = options.enemyPoolInitialSize || 6;
     this._poolMaxSize = options.enemyPoolMaxSize || 160;
@@ -37,7 +39,8 @@ export class EnemySpawner {
       () => new EnemyAgent(this.app, {
         typeId,
         waveNumber: 1,
-        assetLoader: this.assetLoader
+        assetLoader: this.assetLoader,
+        waypoints: this._waypoints
       }),
       (enemy) => enemy.reset(),
       this._poolInitialSize,
@@ -92,12 +95,44 @@ export class EnemySpawner {
     this._onBossSpawnCallback = callback;
   }
 
+  setWaypoints(waypoints) {
+    this._waypoints = waypoints || [];
+  }
+
+  setWavePlan(wavePlan) {
+    this._wavePlan = wavePlan || {};
+  }
+
+  getAuthoredWave(waveNumber) {
+    return this._wavePlan?.[waveNumber] || null;
+  }
+
   /**
    * Generate enemy wave data for a specific wave number.
    * @param {number} waveNumber
    * @returns {Array} Array of enemy spawn data
    */
   generateWave(waveNumber) {
+    const authoredWave = this.getAuthoredWave(waveNumber);
+    if (authoredWave?.composition?.length) {
+      return authoredWave.composition.map(typeId => {
+        const stats = getEnemyStats(typeId, waveNumber);
+        return {
+          typeId,
+          waveNumber,
+          hp: stats.hp,
+          speed: stats.speed,
+          goldReward: stats.goldReward,
+          leakDamage: stats.leakDamage,
+          armor: stats.armor,
+          canFly: stats.canFly,
+          scale: stats.scale,
+          special: stats.special,
+          abilities: stats.abilities || []
+        };
+      });
+    }
+
     const composition = getEnemyComposition(waveNumber);
 
     return composition.map(typeId => {
@@ -130,7 +165,8 @@ export class EnemySpawner {
       ...enemyData,
       typeId,
       waveNumber: enemyData.waveNumber || 1,
-      assetLoader: this.assetLoader
+      assetLoader: this.assetLoader,
+      waypoints: enemyData.waypoints || this._waypoints
     });
 
     if (!enemy) {

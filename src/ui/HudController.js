@@ -47,7 +47,7 @@ export class HudController {
     this._currentWave = 0;
     this._currentHP = 10;
     this._maxHP = 10;
-    this._currentGold = 100;
+    this._currentGold = 220;
     this._timerVisible = false;
     this._highWave = 0;
     this._onRestartCallback = null;

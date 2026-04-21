@@ -1,634 +1,900 @@
 import * as pc from 'playcanvas';
-import {
-  GROUND_WIDTH,
-  GROUND_DEPTH,
-  SPAWN_POINT,
-  BASE_POINT,
-  BUILD_SLOTS,
-  WAYPOINTS
-} from '../data/level.js';
+import { getLevel, DEFAULT_LEVEL_ID } from '../data/levels.js';
 
 /**
  * SceneFactory
- * Creates battlefield, camera, and visual markers via code.
- * Task 1.3: Battlefield and Camera
- * Task 2.2: Build slot click detection
- * Task 5.1: Visual Polish Pass
+ * Creates the active authored battlefield from level data.
  */
 export class SceneFactory {
-  constructor(app) {
+  constructor(app, level = getLevel(DEFAULT_LEVEL_ID)) {
     this.app = app;
+    this.currentLevel = level;
+    this.sceneRoot = null;
     this.ground = null;
     this.camera = null;
     this.baseMarker = null;
-    this.baseGlow = null;
     this.spawnMarker = null;
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
-    this.buildSlotStates = {}; // Track occupied state by slot id
+    this.buildSlotStates = {};
+    this._animatedRotators = [];
+    this._animatedPulses = [];
+    this._pulsingLights = [];
+    this._time = 0;
   }
 
-  /**
-   * Create the complete battlefield scene.
-   */
-  createBattlefield() {
+  setLevel(level) {
+    this.currentLevel = level || getLevel(DEFAULT_LEVEL_ID);
+  }
+
+  createBattlefield(level = this.currentLevel) {
+    this.setLevel(level);
+    this.destroyBattlefield();
+
+    this.sceneRoot = new pc.Entity(`Battlefield_${this.currentLevel.id}`);
+    this.app.root.addChild(this.sceneRoot);
+    this.pathMarkers = [];
+    this.buildSlotMarkers = [];
+    this.buildSlotStates = {};
+    this._animatedRotators = [];
+    this._animatedPulses = [];
+    this._pulsingLights = [];
+    this._time = 0;
+
     this.createLighting();
-    this.createGround();
+    this.createGroundShell();
+    this.createFloorPlates();
+    this.createEnergyTrenches();
+    this.createFortressWalls();
+    this.createBackdropColumns();
+    this.createBridgeDetails();
     this.createCamera();
     this.createSkybox();
     this.createBaseMarker();
     this.createSpawnMarker();
     this.createPathVisualization();
+    this.createBeacons();
     this.createBuildSlotMarkers();
-
-    console.log('[SceneFactory] Battlefield created');
   }
 
-  /**
-   * Create lighting for the scene.
-   */
+  destroyBattlefield() {
+    if (this.sceneRoot) {
+      this.sceneRoot.destroy();
+      this.sceneRoot = null;
+    }
+
+    this.ground = null;
+    this.camera = null;
+    this.baseMarker = null;
+    this.spawnMarker = null;
+    this.pathMarkers = [];
+    this.buildSlotMarkers = [];
+    this.buildSlotStates = {};
+    this._animatedRotators = [];
+    this._animatedPulses = [];
+    this._pulsingLights = [];
+  }
+
+  update(dt) {
+    if (!this.sceneRoot) return;
+
+    this._time += dt;
+
+    this._animatedRotators.forEach(({ entity, speed, axis = 'y' }) => {
+      const angles = entity.getLocalEulerAngles();
+      if (axis === 'x') {
+        entity.setLocalEulerAngles(angles.x + speed * dt, angles.y, angles.z);
+      } else if (axis === 'z') {
+        entity.setLocalEulerAngles(angles.x, angles.y, angles.z + speed * dt);
+      } else {
+        entity.setLocalEulerAngles(angles.x, angles.y + speed * dt, angles.z);
+      }
+    });
+
+    this._animatedPulses.forEach(({ entity, baseScale, amplitude, speed, phase = 0 }) => {
+      const pulse = 1 + Math.sin(this._time * speed + phase) * amplitude;
+      entity.setLocalScale(baseScale.x * pulse, baseScale.y * pulse, baseScale.z * pulse);
+    });
+
+    this._pulsingLights.forEach(({ entity, baseIntensity, amplitude, speed, phase = 0 }) => {
+      if (entity?.light) {
+        entity.light.intensity = baseIntensity + Math.sin(this._time * speed + phase) * amplitude;
+      }
+    });
+  }
+
   createLighting() {
-    // Main directional light (sun)
-    const sun = new pc.Entity('Sun');
+    const theme = this.currentLevel.theme;
+    this.app.scene.ambientLight = this._toColor(theme.ambientColor);
+
+    const sun = new pc.Entity('BastionSun');
     sun.addComponent('light', {
       type: 'directional',
-      color: new pc.Color(1, 0.95, 0.9),
-      intensity: 1.5,
+      color: new pc.Color(0.95, 0.9, 0.86),
+      intensity: 1.25,
       castShadows: true,
-      shadowDistance: 50,
+      shadowDistance: 70,
       shadowResolution: 2048,
       shadowBias: 0.2,
       normalOffsetBias: 0.05
     });
-    sun.setLocalPosition(10, 20, 10);
-    sun.setLocalEulerAngles(45, 45, 0);
-    this.app.root.addChild(sun);
-    this.sun = sun;
+    sun.setLocalPosition(-8, 20, 10);
+    sun.setLocalEulerAngles(52, 34, 0);
+    this.sceneRoot.addChild(sun);
 
-    // Ambient light for fill
-    const ambient = new pc.Entity('Ambient');
-    ambient.addComponent('light', {
-      type: 'point',
-      color: new pc.Color(0.4, 0.5, 0.7),
-      intensity: 0.6,
-      range: 100
-    });
-    ambient.setLocalPosition(0, 15, 0);
-    this.app.root.addChild(ambient);
+    const spawnFill = this._createPointLight(
+      'SpawnFill',
+      this.currentLevel.spawn.x - 2,
+      4.5,
+      this.currentLevel.spawn.z,
+      theme.spawnColor,
+      2.0,
+      22
+    );
 
-    // Warm fill light from spawn side
-    const warmFill = new pc.Entity('WarmFill');
-    warmFill.addComponent('light', {
-      type: 'point',
-      color: new pc.Color(1, 0.6, 0.3),
-      intensity: 0.4,
-      range: 40
-    });
-    warmFill.setLocalPosition(-12, 8, 0);
-    this.app.root.addChild(warmFill);
+    const coreFill = this._createPointLight(
+      'CoreFill',
+      this.currentLevel.base.x,
+      5,
+      this.currentLevel.base.z,
+      theme.coreColor,
+      2.4,
+      22
+    );
 
-    // Cool fill light from base side
-    const coolFill = new pc.Entity('CoolFill');
-    coolFill.addComponent('light', {
-      type: 'point',
-      color: new pc.Color(0.3, 0.7, 1),
-      intensity: 0.4,
-      range: 40
-    });
-    coolFill.setLocalPosition(12, 8, 0);
-    this.app.root.addChild(coolFill);
+    const trenchFill = this._createPointLight(
+      'TrenchFill',
+      2.5,
+      -0.2,
+      1.8,
+      theme.trenchGlow,
+      1.5,
+      26
+    );
+
+    this._pulsingLights.push(
+      { entity: spawnFill, baseIntensity: 2.0, amplitude: 0.35, speed: 2.5, phase: 0.4 },
+      { entity: coreFill, baseIntensity: 2.4, amplitude: 0.45, speed: 3.3, phase: 0.8 },
+      { entity: trenchFill, baseIntensity: 1.5, amplitude: 0.25, speed: 2.1, phase: 1.2 }
+    );
   }
 
-  /**
-   * Create skybox/background.
-   */
   createSkybox() {
-    // Set clear color to dark blue gradient
-    if (this.camera && this.camera.camera) {
-      this.camera.camera.clearColor = new pc.Color(0.02, 0.03, 0.08);
+    if (this.camera?.camera) {
+      this.camera.camera.clearColor = this._toColor(this.currentLevel.theme.skyColor);
     }
   }
 
-  /**
-   * Create ground plane.
-   */
-  createGround() {
-    const ground = new pc.Entity('Ground');
+  createGroundShell() {
+    const { width, depth } = this.currentLevel.battlefield;
+    const theme = this.currentLevel.theme;
 
-    // Create plane geometry
-    ground.addComponent('render', {
-      type: 'plane'
+    const hull = this._createBox(
+      'CitadelHull',
+      { x: 0, y: -0.7, z: 0 },
+      { x: width, y: 1.2, z: depth },
+      this._createMaterial(theme.groundColor, {
+        specular: { r: 0.08, g: 0.1, b: 0.14 },
+        shininess: 10
+      })
+    );
+    this.ground = hull;
+
+    const underglow = this._createPlane(
+      'Underglow',
+      { x: 0, y: -0.08, z: 0 },
+      { x: width * 0.97, y: 1, z: depth * 0.97 },
+      this._createMaterial(theme.trenchGlow, {
+        emissive: theme.trenchGlow,
+        opacity: 0.12
+      })
+    );
+    underglow.setLocalEulerAngles(90, 0, 0);
+  }
+
+  createFloorPlates() {
+    const theme = this.currentLevel.theme;
+    const floorMaterial = this._createMaterial(theme.metalColor, {
+      specular: theme.metalAccent,
+      shininess: 35
     });
 
-    // Position at origin, y=0 (floor level)
-    ground.setLocalPosition(0, 0, 0);
-    ground.setLocalScale(GROUND_WIDTH, 1, GROUND_DEPTH);
+    const accentMaterial = this._createMaterial(theme.metalAccent, {
+      emissive: { r: theme.metalAccent.r * 0.15, g: theme.metalAccent.g * 0.15, b: theme.metalAccent.b * 0.2 },
+      specular: theme.metalAccent,
+      shininess: 45
+    });
 
-    // Darker base with subtle blue tint for atmosphere
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.15, 0.18, 0.22);
-    material.specular = new pc.Color(0.1, 0.1, 0.15);
-    material.shininess = 10;
-    material.update();
-    ground.render.material = material;
+    this.currentLevel.setPieces.floorPlates.forEach((plate, index) => {
+      this._createBox(plate.name, plate.position, plate.scale, index === 1 ? accentMaterial : floorMaterial);
+      this._createPlateTrim(plate, theme);
+    });
 
-    this.app.root.addChild(ground);
-    this.ground = ground;
+    const innerHalo = this._createCylinder(
+      'InnerHalo',
+      { x: 9.5, y: 0.05, z: -4.5 },
+      { x: 7.4, y: 0.12, z: 7.4 },
+      this._createMaterial(theme.metalAccent, {
+        emissive: { r: 0.05, g: 0.11, b: 0.14 },
+        specular: theme.neutralGlow,
+        shininess: 50
+      })
+    );
+    innerHalo.setLocalEulerAngles(0, 0, 0);
 
-    // Create grid overlay for visual depth
-    this._createGridOverlay();
+    const innerHaloRing = this._createTorus(
+      'InnerHaloRing',
+      { x: 9.5, y: 0.14, z: -4.5 },
+      { x: 6.2, y: 6.2, z: 0.24 },
+      this._createMaterial(theme.coreColor, {
+        emissive: { r: theme.coreColor.r * 0.45, g: theme.coreColor.g * 0.45, b: theme.coreColor.b * 0.45 },
+        opacity: 0.55
+      }),
+      { x: 90, y: 0, z: 0 }
+    );
+    this._animatedRotators.push({ entity: innerHaloRing, speed: 14 });
   }
 
-  /**
-   * Create subtle grid overlay on ground.
-   */
-  _createGridOverlay() {
-    const gridSize = 2;
-    const gridCountX = Math.floor(GROUND_WIDTH / gridSize);
-    const gridCountZ = Math.floor(GROUND_DEPTH / gridSize);
+  createEnergyTrenches() {
+    const theme = this.currentLevel.theme;
+    const trenchMaterial = this._createMaterial(theme.trenchColor, {
+      specular: { r: 0.05, g: 0.08, b: 0.12 },
+      shininess: 5
+    });
+    const glowMaterial = this._createMaterial(theme.trenchGlow, {
+      emissive: { r: theme.trenchGlow.r * 0.7, g: theme.trenchGlow.g * 0.7, b: theme.trenchGlow.b * 0.7 },
+      opacity: 0.42
+    });
 
-    for (let x = 0; x < gridCountX; x++) {
-      for (let z = 0; z < gridCountZ; z++) {
-        // Skip center area (path)
-        const worldX = (x - gridCountX / 2 + 0.5) * gridSize;
-        const worldZ = (z - gridCountZ / 2 + 0.5) * gridSize;
+    this.currentLevel.setPieces.trenchSegments.forEach((segment, index) => {
+      this._createBox(segment.name, segment.position, segment.scale, trenchMaterial);
 
-        // Skip if near path (simple check)
-        if (this._isNearPath(worldX, worldZ, 1.5)) continue;
-
-        const cell = new pc.Entity(`GridCell_${x}_${z}`);
-        cell.addComponent('render', { type: 'plane' });
-        cell.setLocalPosition(worldX, 0.01, worldZ);
-        cell.setLocalScale(gridSize * 0.95, 1, gridSize * 0.95);
-
-        const material = new pc.StandardMaterial();
-        material.diffuse = new pc.Color(0.18, 0.22, 0.28);
-        material.opacity = 0.5;
-        material.update();
-        cell.render.material = material;
-
-        this.app.root.addChild(cell);
-      }
-    }
+      const glow = this._createPlane(
+        `${segment.name}_Glow`,
+        { x: segment.position.x, y: -0.02, z: segment.position.z },
+        { x: segment.scale.x * 0.92, y: 1, z: segment.scale.z * 0.92 },
+        glowMaterial
+      );
+      glow.setLocalEulerAngles(90, index % 2 === 0 ? 0 : 90, 0);
+      this._animatedPulses.push({
+        entity: glow,
+        baseScale: glow.getLocalScale().clone(),
+        amplitude: 0.06,
+        speed: 2.8,
+        phase: index * 0.6
+      });
+    });
   }
 
-  /**
-   * Check if position is near the path.
-   */
-  _isNearPath(x, z, threshold) {
-    for (let i = 0; i < WAYPOINTS.length - 1; i++) {
-      const start = WAYPOINTS[i];
-      const end = WAYPOINTS[i + 1];
+  createFortressWalls() {
+    const theme = this.currentLevel.theme;
+    const wallMaterial = this._createMaterial(theme.metalAccent, {
+      specular: theme.neutralGlow,
+      shininess: 40
+    });
+    const capMaterial = this._createMaterial(theme.pathEdgeColor, {
+      emissive: { r: theme.pathEdgeColor.r * 0.18, g: theme.pathEdgeColor.g * 0.18, b: theme.pathEdgeColor.b * 0.18 },
+      opacity: 0.4
+    });
 
-      // Simple distance check to path segment
-      const dx = end.x - start.x;
-      const dz = end.z - start.z;
-      const length = Math.sqrt(dx * dx + dz * dz);
+    this.currentLevel.setPieces.wallSegments.forEach((wall) => {
+      this._createBox(wall.name, wall.position, wall.scale, wallMaterial);
+      this._createBox(
+        `${wall.name}_Cap`,
+        { x: wall.position.x, y: wall.position.y + wall.scale.y / 2 + 0.08, z: wall.position.z },
+        { x: wall.scale.x * 0.92, y: 0.16, z: wall.scale.z * 0.92 },
+        capMaterial
+      );
+    });
 
-      const t = Math.max(0, Math.min(1,
-        ((x - start.x) * dx + (z - start.z) * dz) / (length * length)
-      ));
-
-      const closestX = start.x + t * dx;
-      const closestZ = start.z + t * dz;
-
-      const distToPath = Math.sqrt((x - closestX) ** 2 + (z - closestZ) ** 2);
-      if (distToPath < threshold) return true;
-    }
-    return false;
+    this._createBrokenGate();
   }
 
-  /**
-   * Create fixed perspective camera.
-   * High-angle top-down view per §17.1
-   */
+  createBackdropColumns() {
+    const theme = this.currentLevel.theme;
+    const pylonMaterial = this._createMaterial(theme.metalAccent, {
+      emissive: { r: 0.04, g: 0.06, b: 0.08 },
+      specular: theme.neutralGlow,
+      shininess: 45
+    });
+
+    const columnPositions = [
+      { x: -11.8, y: 2.8, z: 12.1, h: 5.8 },
+      { x: -5.8, y: 2.6, z: 12.0, h: 5.2 },
+      { x: 7.8, y: 2.5, z: 6.3, h: 4.8 },
+      { x: 12.4, y: 2.7, z: -7.4, h: 5.4 },
+      { x: 6.8, y: 2.3, z: -10.6, h: 4.6 }
+    ];
+
+    columnPositions.forEach((column, index) => {
+      this._createBox(
+        `BackdropColumn_${index}`,
+        { x: column.x, y: column.y, z: column.z },
+        { x: 1.2, y: column.h, z: 1.2 },
+        pylonMaterial
+      );
+
+      const cap = this._createSphere(
+        `BackdropCap_${index}`,
+        { x: column.x, y: column.y + column.h / 2 + 0.35, z: column.z },
+        { x: 0.36, y: 0.36, z: 0.36 },
+        this._createMaterial(index % 2 === 0 ? theme.pathEdgeColor : theme.coreColor, {
+          emissive: index % 2 === 0 ? theme.pathEdgeColor : theme.coreColor
+        })
+      );
+
+      this._animatedPulses.push({
+        entity: cap,
+        baseScale: cap.getLocalScale().clone(),
+        amplitude: 0.12,
+        speed: 2.1,
+        phase: index * 0.7
+      });
+    });
+  }
+
+  createBridgeDetails() {
+    const theme = this.currentLevel.theme;
+    const railMaterial = this._createMaterial(theme.pathEdgeColor, {
+      emissive: { r: theme.pathEdgeColor.r * 0.26, g: theme.pathEdgeColor.g * 0.26, b: theme.pathEdgeColor.b * 0.26 },
+      opacity: 0.52
+    });
+    const braceMaterial = this._createMaterial(theme.metalAccent, {
+      specular: theme.neutralGlow,
+      shininess: 40
+    });
+
+    const rails = [
+      { x: 1.0, y: 0.6, z: 3.6, scale: { x: 6.2, y: 0.18, z: 0.2 } },
+      { x: 2.2, y: 0.6, z: -0.6, scale: { x: 6.8, y: 0.18, z: 0.2 } }
+    ];
+
+    rails.forEach((rail, index) => {
+      const entity = this._createBox(`BridgeRail_${index}`, rail, rail.scale, railMaterial);
+      this._animatedPulses.push({
+        entity,
+        baseScale: entity.getLocalScale().clone(),
+        amplitude: 0.04,
+        speed: 2.6,
+        phase: index * 0.5
+      });
+    });
+
+    [-0.8, 2.2, 5.2].forEach((x, index) => {
+      this._createBox(
+        `BridgeBrace_${index}`,
+        { x, y: 0.8, z: 1.45 },
+        { x: 0.22, y: 1.15, z: 4.9 },
+        braceMaterial
+      );
+    });
+  }
+
   createCamera() {
     const camera = new pc.Entity('MainCamera');
-
     camera.addComponent('camera', {
-      clearColor: new pc.Color(0.05, 0.06, 0.1), // Darker blue-grey background
-      fov: 55,
+      clearColor: this._toColor(this.currentLevel.theme.skyColor),
+      fov: 52,
       near: 0.1,
-      far: 100
+      far: 120
     });
 
-    // Position camera high and angled to see whole battlefield
-    // Looking down at center of battlefield from above and slightly in front
-    camera.setLocalPosition(0, 28, 18);
+    const { x, y, z, target } = this.currentLevel.camera;
+    camera.setLocalPosition(x, y, z);
+    camera.lookAt(target.x, target.y, target.z);
 
-    // Look at center of battlefield (world origin)
-    camera.lookAt(0, 0, 0);
-
-    this.app.root.addChild(camera);
+    this.sceneRoot.addChild(camera);
     this.camera = camera;
   }
 
-  /**
-   * Create base placeholder marker at the end of the path.
-   */
   createBaseMarker() {
-    // Main base structure - crystalline core
-    const base = new pc.Entity('BaseMarker');
+    const theme = this.currentLevel.theme;
+    const base = this.currentLevel.base;
 
-    base.addComponent('render', {
-      type: 'cylinder'
+    const platform = this._createCylinder(
+      'CorePlatform',
+      { x: base.x, y: 0.55, z: base.z },
+      { x: 3.4, y: 1.1, z: 3.4 },
+      this._createMaterial(theme.metalAccent, {
+        specular: theme.neutralGlow,
+        shininess: 60
+      })
+    );
+    this.baseMarker = platform;
+
+    const core = this._createSphere(
+      'CoreReactor',
+      { x: base.x, y: 2.2, z: base.z },
+      { x: 1.25, y: 1.25, z: 1.25 },
+      this._createMaterial(theme.coreColor, {
+        emissive: theme.coreColor,
+        specular: theme.neutralGlow,
+        shininess: 120
+      })
+    );
+    this._animatedPulses.push({
+      entity: core,
+      baseScale: core.getLocalScale().clone(),
+      amplitude: 0.08,
+      speed: 3.5,
+      phase: 0.3
     });
 
-    base.setLocalPosition(BASE_POINT.x, 1.0, BASE_POINT.z);
-    base.setLocalScale(2.5, 2.0, 2.5);
+    const innerRing = this._createTorus(
+      'CoreInnerRing',
+      { x: base.x, y: 1.4, z: base.z },
+      { x: 3.8, y: 3.8, z: 0.22 },
+      this._createMaterial(theme.coreColor, {
+        emissive: { r: theme.coreColor.r * 0.55, g: theme.coreColor.g * 0.55, b: theme.coreColor.b * 0.55 },
+        opacity: 0.55
+      }),
+      { x: 90, y: 0, z: 0 }
+    );
 
-    // Bright cyan-white color for core (per §7.4)
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.4, 0.95, 1.0);
-    material.emissive = new pc.Color(0.3, 0.8, 0.9);
-    material.specular = new pc.Color(1, 1, 1);
-    material.shininess = 150;
-    material.update();
-    base.render.material = material;
+    const outerRing = this._createTorus(
+      'CoreOuterRing',
+      { x: base.x, y: 2.15, z: base.z },
+      { x: 5.2, y: 5.2, z: 0.16 },
+      this._createMaterial(theme.neutralGlow, {
+        emissive: { r: 0.34, g: 0.3, b: 0.18 },
+        opacity: 0.4
+      }),
+      { x: 90, y: 0, z: 0 }
+    );
 
-    this.app.root.addChild(base);
-    this.baseMarker = base;
+    this._animatedRotators.push(
+      { entity: innerRing, speed: 26 },
+      { entity: outerRing, speed: -18 }
+    );
 
-    // Inner glowing orb
-    const orb = new pc.Entity('BaseOrb');
-    orb.addComponent('render', { type: 'sphere' });
-    orb.setLocalPosition(BASE_POINT.x, 1.5, BASE_POINT.z);
-    orb.setLocalScale(1.2, 1.2, 1.2);
-
-    const orbMaterial = new pc.StandardMaterial();
-    orbMaterial.diffuse = new pc.Color(0.6, 1.0, 1.0);
-    orbMaterial.emissive = new pc.Color(0.5, 1.0, 1.0);
-    orbMaterial.specular = new pc.Color(1, 1, 1);
-    orbMaterial.shininess = 200;
-    orbMaterial.update();
-    orb.render.material = orbMaterial;
-
-    this.app.root.addChild(orb);
-    this.baseOrb = orb;
-
-    // Add glow ring around base
-    const glow = new pc.Entity('BaseGlow');
-    glow.addComponent('render', { type: 'torus' });
-    glow.setLocalPosition(BASE_POINT.x, 0.1, BASE_POINT.z);
-    glow.setLocalScale(4.5, 4.5, 0.4);
-    glow.setLocalEulerAngles(90, 0, 0);
-
-    const glowMaterial = new pc.StandardMaterial();
-    glowMaterial.diffuse = new pc.Color(0.3, 0.9, 1.0);
-    glowMaterial.emissive = new pc.Color(0.2, 0.6, 0.8);
-    glowMaterial.opacity = 0.6;
-    glowMaterial.update();
-    glow.render.material = glowMaterial;
-
-    this.app.root.addChild(glow);
-    this.baseGlow = glow;
-
-    // Secondary outer ring
-    const outerRing = new pc.Entity('BaseOuterRing');
-    outerRing.addComponent('render', { type: 'torus' });
-    outerRing.setLocalPosition(BASE_POINT.x, 0.05, BASE_POINT.z);
-    outerRing.setLocalScale(5.5, 5.5, 0.25);
-    outerRing.setLocalEulerAngles(90, 0, 0);
-
-    const outerMaterial = new pc.StandardMaterial();
-    outerMaterial.diffuse = new pc.Color(0.2, 0.5, 0.7);
-    outerMaterial.emissive = new pc.Color(0.1, 0.3, 0.5);
-    outerMaterial.opacity = 0.4;
-    outerMaterial.update();
-    outerRing.render.material = outerMaterial;
-
-    this.app.root.addChild(outerRing);
-
-    // Floating crystals around base
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const crystal = new pc.Entity(`BaseCrystal_${i}`);
-      crystal.addComponent('render', { type: 'cone' });
-      crystal.setLocalPosition(
-        BASE_POINT.x + Math.cos(angle) * 2.5,
-        0.8,
-        BASE_POINT.z + Math.sin(angle) * 2.5
+    [0, 90, 180, 270].forEach((angle, index) => {
+      const radians = angle * (Math.PI / 180);
+      const pylon = this._createBox(
+        `CorePylon_${index}`,
+        {
+          x: base.x + Math.cos(radians) * 2.4,
+          y: 1.0,
+          z: base.z + Math.sin(radians) * 2.4
+        },
+        { x: 0.42, y: 1.9, z: 0.42 },
+        this._createMaterial(theme.metalAccent, {
+          specular: theme.neutralGlow,
+          shininess: 70
+        })
       );
-      crystal.setLocalScale(0.4, 1.2, 0.4);
-      crystal.setLocalEulerAngles(180, angle * (180 / Math.PI), 0);
 
-      const crystalMaterial = new pc.StandardMaterial();
-      crystalMaterial.diffuse = new pc.Color(0.5, 0.95, 1.0);
-      crystalMaterial.emissive = new pc.Color(0.3, 0.7, 0.8);
-      crystalMaterial.specular = new pc.Color(1, 1, 1);
-      crystalMaterial.shininess = 150;
-      crystalMaterial.update();
-      crystal.render.material = crystalMaterial;
+      const pylonTip = this._createSphere(
+        `CorePylonTip_${index}`,
+        {
+          x: base.x + Math.cos(radians) * 2.4,
+          y: 2.15,
+          z: base.z + Math.sin(radians) * 2.4
+        },
+        { x: 0.24, y: 0.24, z: 0.24 },
+        this._createMaterial(theme.coreColor, { emissive: theme.coreColor })
+      );
 
-      this.app.root.addChild(crystal);
-    }
+      this._animatedPulses.push({
+        entity: pylonTip,
+        baseScale: pylonTip.getLocalScale().clone(),
+        amplitude: 0.18,
+        speed: 2.7,
+        phase: index
+      });
+
+      pylon.setLocalEulerAngles(0, angle, 0);
+    });
   }
 
-  /**
-   * Create spawn point marker at the start of the path.
-   */
   createSpawnMarker() {
-    // Main spawn structure - dark portal
-    const spawn = new pc.Entity('SpawnMarker');
+    const theme = this.currentLevel.theme;
+    const spawn = this.currentLevel.spawn;
 
-    spawn.addComponent('render', {
-      type: 'cylinder'
+    const pedestal = this._createCylinder(
+      'BreachPortalBase',
+      { x: spawn.x, y: 0.6, z: spawn.z },
+      { x: 2.6, y: 1.1, z: 2.6 },
+      this._createMaterial({ r: 0.16, g: 0.12, b: 0.14 }, {
+        emissive: { r: 0.14, g: 0.05, b: 0.04 },
+        shininess: 55
+      })
+    );
+    this.spawnMarker = pedestal;
+
+    const portal = this._createTorus(
+      'BreachPortalRing',
+      { x: spawn.x, y: 1.4, z: spawn.z },
+      { x: 3.8, y: 3.8, z: 0.24 },
+      this._createMaterial(theme.spawnColor, {
+        emissive: { r: theme.spawnColor.r * 0.65, g: theme.spawnColor.g * 0.38, b: theme.spawnColor.b * 0.22 },
+        opacity: 0.65
+      }),
+      { x: 0, y: 90, z: 0 }
+    );
+
+    const core = this._createSphere(
+      'BreachPortalCore',
+      { x: spawn.x, y: 1.3, z: spawn.z },
+      { x: 0.9, y: 0.9, z: 0.9 },
+      this._createMaterial(theme.spawnColor, {
+        emissive: theme.spawnColor,
+        opacity: 0.78
+      })
+    );
+
+    this._animatedRotators.push({ entity: portal, speed: 34, axis: 'z' });
+    this._animatedPulses.push({
+      entity: core,
+      baseScale: core.getLocalScale().clone(),
+      amplitude: 0.1,
+      speed: 4.2,
+      phase: 0.9
     });
-
-    spawn.setLocalPosition(SPAWN_POINT.x, 0.8, SPAWN_POINT.z);
-    spawn.setLocalScale(2.0, 1.6, 2.0);
-
-    // Dark portal color
-    const material = new pc.StandardMaterial();
-    material.diffuse = new pc.Color(0.2, 0.1, 0.15);
-    material.emissive = new pc.Color(0.4, 0.1, 0.2);
-    material.specular = new pc.Color(0.3, 0.2, 0.25);
-    material.shininess = 80;
-    material.update();
-    spawn.render.material = material;
-
-    this.app.root.addChild(spawn);
-    this.spawnMarker = spawn;
-
-    // Inner dark core
-    const core = new pc.Entity('SpawnCore');
-    core.addComponent('render', { type: 'sphere' });
-    core.setLocalPosition(SPAWN_POINT.x, 1.0, SPAWN_POINT.z);
-    core.setLocalScale(0.8, 0.8, 0.8);
-
-    const coreMaterial = new pc.StandardMaterial();
-    coreMaterial.diffuse = new pc.Color(0.8, 0.2, 0.3);
-    coreMaterial.emissive = new pc.Color(0.6, 0.1, 0.2);
-    coreMaterial.specular = new pc.Color(1, 0.5, 0.5);
-    coreMaterial.shininess = 100;
-    coreMaterial.update();
-    core.render.material = coreMaterial;
-
-    this.app.root.addChild(core);
-
-    // Add warning ring
-    const ring = new pc.Entity('SpawnRing');
-    ring.addComponent('render', { type: 'torus' });
-    ring.setLocalPosition(SPAWN_POINT.x, 0.1, SPAWN_POINT.z);
-    ring.setLocalScale(3.5, 3.5, 0.3);
-    ring.setLocalEulerAngles(90, 0, 0);
-
-    const ringMaterial = new pc.StandardMaterial();
-    ringMaterial.diffuse = new pc.Color(1.0, 0.25, 0.15);
-    ringMaterial.emissive = new pc.Color(0.7, 0.15, 0.1);
-    ringMaterial.opacity = 0.7;
-    ringMaterial.update();
-    ring.render.material = ringMaterial;
-
-    this.app.root.addChild(ring);
-
-    // Outer pulsing ring
-    const outerRing = new pc.Entity('SpawnOuterRing');
-    outerRing.addComponent('render', { type: 'torus' });
-    outerRing.setLocalPosition(SPAWN_POINT.x, 0.05, SPAWN_POINT.z);
-    outerRing.setLocalScale(4.5, 4.5, 0.2);
-    outerRing.setLocalEulerAngles(90, 0, 0);
-
-    const outerMaterial = new pc.StandardMaterial();
-    outerMaterial.diffuse = new pc.Color(0.6, 0.15, 0.1);
-    outerMaterial.emissive = new pc.Color(0.4, 0.08, 0.05);
-    outerMaterial.opacity = 0.4;
-    outerMaterial.update();
-    outerRing.render.material = outerMaterial;
-
-    this.app.root.addChild(outerRing);
-
-    // Dark crystals around spawn
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const crystal = new pc.Entity(`SpawnCrystal_${i}`);
-      crystal.addComponent('render', { type: 'cone' });
-      crystal.setLocalPosition(
-        SPAWN_POINT.x + Math.cos(angle) * 1.8,
-        0.6,
-        SPAWN_POINT.z + Math.sin(angle) * 1.8
-      );
-      crystal.setLocalScale(0.35, 1.0, 0.35);
-      crystal.setLocalEulerAngles(180, angle * (180 / Math.PI), 0);
-
-      const crystalMaterial = new pc.StandardMaterial();
-      crystalMaterial.diffuse = new pc.Color(0.8, 0.2, 0.25);
-      crystalMaterial.emissive = new pc.Color(0.5, 0.1, 0.15);
-      crystalMaterial.specular = new pc.Color(1, 0.5, 0.5);
-      crystalMaterial.shininess = 100;
-      crystalMaterial.update();
-      crystal.render.material = crystalMaterial;
-
-      this.app.root.addChild(crystal);
-    }
   }
 
-  /**
-   * Create path visualization through waypoints.
-   */
   createPathVisualization() {
-    // Create glowing path segments connecting waypoints
-    for (let i = 0; i < WAYPOINTS.length - 1; i++) {
-      const start = WAYPOINTS[i];
-      const end = WAYPOINTS[i + 1];
+    const waypoints = this.currentLevel.waypoints;
+    const pathStyle = this.currentLevel.pathStyle;
+    const theme = this.currentLevel.theme;
+    const pathMaterial = this._createMaterial(theme.pathColor, {
+      emissive: { r: 0.1, g: 0.12, b: 0.16 },
+      specular: theme.neutralGlow,
+      shininess: 30
+    });
+    const edgeMaterial = this._createMaterial(theme.pathEdgeColor, {
+      emissive: { r: theme.pathEdgeColor.r * 0.28, g: theme.pathEdgeColor.g * 0.28, b: theme.pathEdgeColor.b * 0.28 },
+      opacity: 0.6
+    });
 
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const start = waypoints[i];
+      const end = waypoints[i + 1];
       const dx = end.x - start.x;
       const dz = end.z - start.z;
       const length = Math.sqrt(dx * dx + dz * dz);
       const angle = Math.atan2(dx, dz);
 
-      // Main path segment
-      const segment = new pc.Entity(`PathSegment_${i}`);
-      segment.addComponent('render', {
-        type: 'box'
-      });
-
-      // Position at midpoint
-      segment.setLocalPosition(
-        (start.x + end.x) / 2,
-        0.08,
-        (start.z + end.z) / 2
+      const segment = this._createBox(
+        `PathSegment_${i}`,
+        {
+          x: (start.x + end.x) / 2,
+          y: pathStyle.height || 0.12,
+          z: (start.z + end.z) / 2
+        },
+        { x: pathStyle.width, y: 0.18, z: length + pathStyle.width * 0.15 },
+        pathMaterial,
+        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
-
-      // Scale: visible path
-      segment.setLocalScale(1.2, 0.15, length);
-      segment.setLocalEulerAngles(0, -angle * (180 / Math.PI), 0);
-
-      // Path color - warm but readable (per §7.4)
-      const material = new pc.StandardMaterial();
-      material.diffuse = new pc.Color(0.5, 0.55, 0.6);
-      material.emissive = new pc.Color(0.15, 0.2, 0.25);
-      material.update();
-      segment.render.material = material;
-
-      this.app.root.addChild(segment);
       this.pathMarkers.push(segment);
 
-      // Path edge markers for visibility
-      const edgeL = new pc.Entity(`PathEdge_L_${i}`);
-      edgeL.addComponent('render', { type: 'box' });
-      edgeL.setLocalPosition(
-        (start.x + end.x) / 2 - Math.cos(angle) * 0.55,
-        0.05,
-        (start.z + end.z) / 2 + Math.sin(angle) * 0.55
+      const edgeOffset = pathStyle.width / 2 + 0.12;
+      const edgeScale = { x: pathStyle.edgeWidth, y: 0.16, z: length + pathStyle.width * 0.18 };
+
+      const leftEdge = this._createBox(
+        `PathEdgeL_${i}`,
+        {
+          x: (start.x + end.x) / 2 - Math.cos(angle) * edgeOffset,
+          y: 0.18,
+          z: (start.z + end.z) / 2 + Math.sin(angle) * edgeOffset
+        },
+        edgeScale,
+        edgeMaterial,
+        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
-      edgeL.setLocalScale(0.1, 0.1, length);
-      edgeL.setLocalEulerAngles(0, -angle * (180 / Math.PI), 0);
 
-      const edgeMaterial = new pc.StandardMaterial();
-      edgeMaterial.diffuse = new pc.Color(0.3, 0.8, 0.9);
-      edgeMaterial.emissive = new pc.Color(0.1, 0.4, 0.5);
-      edgeMaterial.update();
-      edgeL.render.material = edgeMaterial;
-
-      this.app.root.addChild(edgeL);
-      this.pathMarkers.push(edgeL);
-
-      const edgeR = new pc.Entity(`PathEdge_R_${i}`);
-      edgeR.addComponent('render', { type: 'box' });
-      edgeR.setLocalPosition(
-        (start.x + end.x) / 2 + Math.cos(angle) * 0.55,
-        0.05,
-        (start.z + end.z) / 2 - Math.sin(angle) * 0.55
+      const rightEdge = this._createBox(
+        `PathEdgeR_${i}`,
+        {
+          x: (start.x + end.x) / 2 + Math.cos(angle) * edgeOffset,
+          y: 0.18,
+          z: (start.z + end.z) / 2 - Math.sin(angle) * edgeOffset
+        },
+        edgeScale,
+        edgeMaterial,
+        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
-      edgeR.setLocalScale(0.1, 0.1, length);
-      edgeR.setLocalEulerAngles(0, -angle * (180 / Math.PI), 0);
-      edgeR.render.material = edgeMaterial;
 
-      this.app.root.addChild(edgeR);
-      this.pathMarkers.push(edgeR);
+      this.pathMarkers.push(leftEdge, rightEdge);
     }
 
-    // Waypoint markers
-    WAYPOINTS.forEach((wp, index) => {
-      // Skip first and last (spawn and base have their own markers)
-      if (index === 0 || index === WAYPOINTS.length - 1) return;
+    waypoints.forEach((waypoint, index) => {
+      if (index === 0 || index === waypoints.length - 1) return;
 
-      const marker = new pc.Entity(`PathMarker_${index}`);
-      marker.addComponent('render', { type: 'cylinder' });
-      marker.setLocalPosition(wp.x, 0.15, wp.z);
-      marker.setLocalScale(0.6, 0.3, 0.6);
-
-      const material = new pc.StandardMaterial();
-      material.diffuse = new pc.Color(0.4, 0.75, 0.85);
-      material.emissive = new pc.Color(0.2, 0.4, 0.5);
-      material.update();
-      marker.render.material = material;
-
-      this.app.root.addChild(marker);
+      const marker = this._createCylinder(
+        `Waypoint_${index}`,
+        { x: waypoint.x, y: 0.22, z: waypoint.z },
+        { x: pathStyle.waypointRadius, y: 0.18, z: pathStyle.waypointRadius },
+        this._createMaterial(theme.neutralGlow, {
+          emissive: { r: 0.28, g: 0.24, b: 0.16 },
+          shininess: 80
+        })
+      );
       this.pathMarkers.push(marker);
     });
   }
 
-  /**
-   * Create exactly two build slot markers.
-   * Click detection is handled via custom ray-plane intersection in GameBootstrap.
-   */
-  createBuildSlotMarkers() {
-    BUILD_SLOTS.forEach((slot) => {
-      // Base platform
-      const marker = new pc.Entity(`BuildSlot_${slot.id}`);
+  createBeacons() {
+    const theme = this.currentLevel.theme;
+    this.currentLevel.setPieces.beacons.forEach((beacon, index) => {
+      const color =
+        beacon.color === 'spawn'
+          ? theme.spawnColor
+          : beacon.color === 'core'
+            ? theme.coreColor
+            : theme.pathEdgeColor;
 
-      marker.addComponent('render', {
-        type: 'cylinder'
+      const column = this._createBox(
+        beacon.name,
+        { x: beacon.x, y: beacon.y, z: beacon.z },
+        { x: 0.26, y: 1.8, z: 0.26 },
+        this._createMaterial(theme.metalAccent, {
+          specular: theme.neutralGlow,
+          shininess: 55
+        })
+      );
+
+      const tip = this._createSphere(
+        `${beacon.name}_Tip`,
+        { x: beacon.x, y: beacon.y + 1.1, z: beacon.z },
+        { x: 0.2, y: 0.2, z: 0.2 },
+        this._createMaterial(color, { emissive: color })
+      );
+
+      this._animatedPulses.push({
+        entity: tip,
+        baseScale: tip.getLocalScale().clone(),
+        amplitude: 0.16,
+        speed: 3.0,
+        phase: index * 0.45
       });
 
-      marker.setLocalPosition(slot.x, 0.15, slot.z);
-      marker.setLocalScale(2, 0.3, 2);
-
-      // Glowing platform color (per §7.5)
-      const material = new pc.StandardMaterial();
-      material.diffuse = new pc.Color(0.6, 0.65, 0.7);
-      material.emissive = new pc.Color(0.25, 0.28, 0.35);
-      material.specular = new pc.Color(0.3, 0.3, 0.3);
-      material.shininess = 20;
-      material.update();
-      marker.render.material = material;
-
-      // Store slot id on entity for identification
-      marker.slotId = slot.id;
-      marker.slotData = slot;
-
-      this.app.root.addChild(marker);
-      this.buildSlotMarkers.push(marker);
-
-      // Slot ring indicator
-      const ring = new pc.Entity(`SlotRing_${slot.id}`);
-      ring.addComponent('render', { type: 'torus' });
-      ring.setLocalPosition(slot.x, 0.05, slot.z);
-      ring.setLocalScale(1.8, 1.8, 0.2);
-      ring.setLocalEulerAngles(90, 0, 0);
-
-      const ringMaterial = new pc.StandardMaterial();
-      ringMaterial.diffuse = new pc.Color(0.95, 0.9, 0.75);
-      ringMaterial.emissive = new pc.Color(0.4, 0.35, 0.2);
-      ringMaterial.update();
-      ring.render.material = ringMaterial;
-
-      this.app.root.addChild(ring);
-
-      // Initialize slot state
-      this.buildSlotStates[slot.id] = {
-        occupied: false,
-        entity: marker
-      };
+      column.setLocalEulerAngles(0, index * 20, 0);
     });
   }
 
-  /**
-   * Get camera entity for raycast.
-   * @returns {pc.Entity}
-   */
+  createBuildSlotMarkers() {
+    const theme = this.currentLevel.theme;
+
+    this.currentLevel.buildSlots.forEach((slot, index) => {
+      const markerColor = this._getSlotColor(slot.role, theme);
+      const marker = this._createCylinder(
+        `BuildSlot_${slot.id}`,
+        { x: slot.x, y: slot.y ?? this.currentLevel.battlefield.padHeight, z: slot.z },
+        { x: 1.85, y: 0.34, z: 1.85 },
+        this._createMaterial(theme.metalAccent, {
+          specular: theme.neutralGlow,
+          shininess: 55
+        })
+      );
+
+      marker.slotId = slot.id;
+      marker.slotData = slot;
+      this.buildSlotMarkers.push(marker);
+      this.buildSlotStates[slot.id] = { occupied: false, entity: marker };
+
+      const ring = this._createTorus(
+        `BuildSlotRing_${slot.id}`,
+        { x: slot.x, y: (slot.y ?? this.currentLevel.battlefield.padHeight) + 0.07, z: slot.z },
+        { x: 1.65, y: 1.65, z: 0.18 },
+        this._createMaterial(markerColor, {
+          emissive: { r: markerColor.r * 0.4, g: markerColor.g * 0.4, b: markerColor.b * 0.4 },
+          opacity: 0.56
+        }),
+        { x: 90, y: 0, z: 0 }
+      );
+
+      const core = this._createSphere(
+        `BuildSlotCore_${slot.id}`,
+        { x: slot.x, y: (slot.y ?? this.currentLevel.battlefield.padHeight) + 0.25, z: slot.z },
+        { x: 0.16, y: 0.16, z: 0.16 },
+        this._createMaterial(markerColor, { emissive: markerColor })
+      );
+
+      this._animatedRotators.push({ entity: ring, speed: index % 2 === 0 ? 18 : -18 });
+      this._animatedPulses.push({
+        entity: core,
+        baseScale: core.getLocalScale().clone(),
+        amplitude: 0.2,
+        speed: 3.1,
+        phase: index * 0.6
+      });
+
+      if (slot.role === 'perch') {
+        this._createBox(
+          `PerchSupport_${slot.id}`,
+          { x: slot.x, y: 0.42, z: slot.z },
+          { x: 1.15, y: 0.8, z: 1.15 },
+          this._createMaterial(theme.metalAccent, {
+            specular: theme.neutralGlow,
+            shininess: 45
+          })
+        );
+      }
+    });
+  }
+
   getCamera() {
     return this.camera;
   }
 
-  /**
-   * Get build slot by id.
-   * @param {string} slotId
-   * @returns {object|null}
-   */
   getSlotState(slotId) {
     return this.buildSlotStates[slotId] || null;
   }
 
-  /**
-   * Mark a slot as occupied.
-   * @param {string} slotId
-   */
   setSlotOccupied(slotId) {
     if (this.buildSlotStates[slotId]) {
       this.buildSlotStates[slotId].occupied = true;
-      console.log(`[SceneFactory] Slot ${slotId} marked as occupied`);
     }
   }
 
-  /**
-   * Mark a slot as unoccupied.
-   * @param {string} slotId
-   */
   setSlotUnoccupied(slotId) {
     if (this.buildSlotStates[slotId]) {
       this.buildSlotStates[slotId].occupied = false;
-      console.log(`[SceneFactory] Slot ${slotId} marked as unoccupied`);
     }
   }
 
-  /**
-   * Check if a slot is occupied.
-   * @param {string} slotId
-   * @returns {boolean}
-   */
   isSlotOccupied(slotId) {
-    const state = this.buildSlotStates[slotId];
-    return state ? state.occupied : false;
+    return this.buildSlotStates[slotId]?.occupied || false;
   }
 
-  /**
-   * Get all build slot markers.
-   * @returns {pc.Entity[]}
-   */
   getBuildSlotMarkers() {
     return this.buildSlotMarkers;
+  }
+
+  _createBrokenGate() {
+    const theme = this.currentLevel.theme;
+    const debrisMaterial = this._createMaterial({ r: 0.22, g: 0.16, b: 0.14 }, {
+      emissive: { r: 0.08, g: 0.04, b: 0.03 },
+      shininess: 22
+    });
+
+    const fragments = [
+      { x: -12.8, y: 0.4, z: 7.0, scale: { x: 1.8, y: 0.8, z: 0.9 }, rot: { x: 12, y: 34, z: 18 } },
+      { x: -10.8, y: 0.25, z: 5.6, scale: { x: 1.2, y: 0.55, z: 0.9 }, rot: { x: 0, y: 10, z: -12 } },
+      { x: -9.6, y: 0.22, z: 8.8, scale: { x: 1.4, y: 0.4, z: 0.7 }, rot: { x: 0, y: -20, z: 8 } }
+    ];
+
+    fragments.forEach((fragment, index) => {
+      this._createBox(`BreachDebris_${index}`, fragment, fragment.scale, debrisMaterial, fragment.rot);
+    });
+
+    const fireGlow = this._createPlane(
+      'BreachGlow',
+      { x: -11.8, y: 0.06, z: 7.5 },
+      { x: 4.8, y: 1, z: 3.8 },
+      this._createMaterial(theme.spawnColor, {
+        emissive: theme.spawnColor,
+        opacity: 0.18
+      })
+    );
+    fireGlow.setLocalEulerAngles(90, 0, 0);
+    this._animatedPulses.push({
+      entity: fireGlow,
+      baseScale: fireGlow.getLocalScale().clone(),
+      amplitude: 0.08,
+      speed: 3.8,
+      phase: 1.1
+    });
+  }
+
+  _createPlateTrim(plate, theme) {
+    this._createBox(
+      `${plate.name}_Trim`,
+      { x: plate.position.x, y: plate.position.y + plate.scale.y / 2 + 0.08, z: plate.position.z },
+      { x: plate.scale.x * 0.96, y: 0.12, z: plate.scale.z * 0.96 },
+      this._createMaterial(theme.metalAccent, {
+        emissive: { r: 0.04, g: 0.06, b: 0.08 },
+        shininess: 40
+      })
+    );
+  }
+
+  _getSlotColor(role, theme) {
+    switch (role) {
+      case 'forward':
+        return theme.spawnColor;
+      case 'panic':
+        return theme.coreColor;
+      case 'perch':
+        return theme.neutralGlow;
+      case 'crossfire':
+      default:
+        return theme.pathEdgeColor;
+    }
+  }
+
+  _createPointLight(name, x, y, z, color, intensity, range) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('light', {
+      type: 'point',
+      color: this._toColor(color),
+      intensity,
+      range
+    });
+    entity.setLocalPosition(x, y, z);
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createBox(name, position, scale, material, rotation = null) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('render', { type: 'box' });
+    entity.setLocalPosition(position.x, position.y, position.z);
+    entity.setLocalScale(scale.x, scale.y, scale.z);
+    if (rotation) {
+      entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+    }
+    entity.render.material = material;
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createPlane(name, position, scale, material, rotation = null) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('render', { type: 'plane' });
+    entity.setLocalPosition(position.x, position.y, position.z);
+    entity.setLocalScale(scale.x, scale.y, scale.z);
+    if (rotation) {
+      entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+    }
+    entity.render.material = material;
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createCylinder(name, position, scale, material) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('render', { type: 'cylinder' });
+    entity.setLocalPosition(position.x, position.y, position.z);
+    entity.setLocalScale(scale.x, scale.y, scale.z);
+    entity.render.material = material;
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createSphere(name, position, scale, material) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('render', { type: 'sphere' });
+    entity.setLocalPosition(position.x, position.y, position.z);
+    entity.setLocalScale(scale.x, scale.y, scale.z);
+    entity.render.material = material;
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createTorus(name, position, scale, material, rotation = null) {
+    const entity = new pc.Entity(name);
+    entity.addComponent('render', { type: 'torus' });
+    entity.setLocalPosition(position.x, position.y, position.z);
+    entity.setLocalScale(scale.x, scale.y, scale.z);
+    if (rotation) {
+      entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+    }
+    entity.render.material = material;
+    this.sceneRoot.addChild(entity);
+    return entity;
+  }
+
+  _createMaterial(diffuseColor, options = {}) {
+    const material = new pc.StandardMaterial();
+    material.diffuse = this._toColor(diffuseColor);
+    material.specular = this._toColor(options.specular || { r: 0.18, g: 0.2, b: 0.22 });
+    material.shininess = options.shininess ?? 20;
+
+    if (options.emissive) {
+      material.emissive = this._toColor(options.emissive);
+    }
+
+    if (options.opacity !== undefined) {
+      material.opacity = options.opacity;
+      material.blendType = pc.BLEND_NORMAL;
+    }
+
+    material.update();
+    return material;
+  }
+
+  _toColor(color) {
+    return new pc.Color(color.r, color.g, color.b, color.a ?? 1);
   }
 }

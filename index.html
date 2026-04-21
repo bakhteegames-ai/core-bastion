@@ -5,90 +5,191 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Core Bastion</title>
 
-  <!-- Yandex Games meta tags -->
   <meta name="yandex-games" content="enabled">
-
-  <!-- Prevent scroll bounce on iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+
   <style>
+    :root {
+      --bg: #05070b;
+      --panel: rgba(8, 13, 19, 0.74);
+      --panel-strong: rgba(10, 15, 23, 0.88);
+      --panel-soft: rgba(11, 18, 27, 0.54);
+      --line: rgba(136, 224, 238, 0.18);
+      --line-strong: rgba(136, 224, 238, 0.34);
+      --core: #86f6ff;
+      --core-soft: rgba(134, 246, 255, 0.25);
+      --threat: #ff7043;
+      --threat-soft: rgba(255, 112, 67, 0.24);
+      --gold: #f6ca63;
+      --text: #f2f7fb;
+      --muted: rgba(220, 233, 244, 0.64);
+      --deep-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
+      --panel-blur: blur(18px);
+    }
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
+
     html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        radial-gradient(circle at 16% 14%, rgba(255, 112, 67, 0.12), transparent 30%),
+        radial-gradient(circle at 82% 18%, rgba(134, 246, 255, 0.16), transparent 28%),
+        linear-gradient(180deg, #081019 0%, #030507 60%, #010203 100%);
+      color: var(--text);
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
     }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 96px 96px;
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: 0;
+    }
+
     #application-canvas {
       width: 100%;
       height: 100%;
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 0;
     }
+
     #hud {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
+      inset: 0;
       z-index: 10;
+      pointer-events: none;
     }
+
     .hud-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      padding: 16px 20px;
+      gap: 14px;
+      padding: 18px 18px 0;
     }
-    .hud-panel {
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 8px;
-      padding: 12px 16px;
-      color: #fff;
-      min-width: 120px;
-    }
-    .hud-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #aaa;
-      margin-bottom: 4px;
-    }
-    .hud-value {
-      font-size: 24px;
-      font-weight: bold;
-    }
-    .hud-sub {
-      font-size: 12px;
-      color: #888;
-      margin-top: 4px;
-    }
-    .hud-gold .hud-value {
-      color: #ffd700;
-    }
-    .hud-hp .hud-value {
-      color: #ff6b6b;
-    }
-    .hud-wave .hud-value {
-      color: #4ecdc4;
-    }
-    .hud-highwave .hud-value {
-      color: #9b59b6;
-      font-size: 14px;
-    }
-    .hud-wave-panel {
+
+    .hud-column {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 10px;
+      min-width: 0;
     }
-    .hud-hidden {
-      display: none;
+
+    .hud-resource-stack {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(132px, 1fr));
+      gap: 10px;
     }
+
+    .hud-panel {
+      position: relative;
+      min-width: 132px;
+      padding: 11px 13px 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        var(--panel);
+      box-shadow: var(--deep-shadow);
+      backdrop-filter: var(--panel-blur);
+      overflow: hidden;
+    }
+
+    .hud-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 35%);
+      pointer-events: none;
+    }
+
+    .hud-theater {
+      min-width: 260px;
+      padding: 14px 16px 15px;
+      border-color: rgba(255, 112, 67, 0.22);
+      background:
+        linear-gradient(135deg, rgba(255, 112, 67, 0.12), transparent 48%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
+        var(--panel-strong);
+    }
+
+    .hud-caption,
+    .hud-label {
+      font-size: 10px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .hud-theater-name {
+      margin-top: 8px;
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .hud-theater-sub {
+      margin-top: 5px;
+      font-size: 13px;
+      line-height: 1.35;
+      color: rgba(234, 242, 248, 0.74);
+      max-width: 30ch;
+    }
+
+    .hud-objective {
+      min-width: 240px;
+      padding: 12px 14px;
+      border-color: rgba(134, 246, 255, 0.22);
+      background:
+        linear-gradient(135deg, rgba(134, 246, 255, 0.13), transparent 50%),
+        var(--panel-soft);
+    }
+
+    .hud-objective-text {
+      margin-top: 6px;
+      font-size: 13px;
+      color: rgba(233, 244, 251, 0.86);
+    }
+
+    .hud-value {
+      margin-top: 5px;
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+
+    .hud-sub {
+      margin-top: 4px;
+      font-size: 12px;
+      color: rgba(218, 231, 242, 0.66);
+    }
+
+    .hud-gold .hud-value { color: var(--gold); }
+    .hud-hp .hud-value { color: #ff8b8b; }
+    .hud-wave .hud-value { color: var(--core); }
+    .hud-highwave .hud-value { font-size: 16px; }
+
     .hud-timer {
       position: absolute;
       top: 50%;
@@ -96,459 +197,667 @@
       transform: translate(-50%, -50%);
       text-align: center;
     }
+
     .hud-timer .hud-panel {
-      background: rgba(78, 205, 196, 0.8);
+      min-width: 220px;
+      border-color: rgba(134, 246, 255, 0.34);
+      background:
+        linear-gradient(135deg, rgba(134, 246, 255, 0.22), rgba(255, 112, 67, 0.12)),
+        rgba(7, 13, 19, 0.8);
     }
+
     .hud-timer .hud-value {
-      font-size: 36px;
+      font-size: 42px;
+      color: var(--core);
     }
-    #defeat-screen {
+
+    .hud-hidden,
+    .hidden {
+      display: none !important;
+    }
+
+    #defeat-screen,
+    #main-menu {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
+      inset: 0;
       z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
     }
-    #defeat-screen.hidden {
-      display: none;
+
+    #defeat-screen {
+      background:
+        radial-gradient(circle at center, rgba(255, 112, 67, 0.16), transparent 36%),
+        rgba(3, 5, 8, 0.88);
     }
-    .defeat-title {
-      font-size: 48px;
-      font-weight: bold;
-      color: #ff6b6b;
-      margin-bottom: 16px;
-      text-transform: uppercase;
-      letter-spacing: 4px;
+
+    #main-menu {
+      background:
+        radial-gradient(circle at 18% 22%, rgba(255, 112, 67, 0.16), transparent 30%),
+        radial-gradient(circle at 84% 12%, rgba(134, 246, 255, 0.14), transparent 28%),
+        linear-gradient(180deg, rgba(4, 8, 12, 0.58), rgba(2, 4, 8, 0.88));
     }
-    .defeat-wave {
-      font-size: 24px;
-      color: #4ecdc4;
-      margin-bottom: 8px;
+
+    .menu-shell,
+    .defeat-shell {
+      width: min(100%, 920px);
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 18px;
+      align-items: stretch;
     }
-    .defeat-best {
-      font-size: 18px;
-      color: #9b59b6;
-      margin-bottom: 32px;
-    }
-    .defeat-btn {
-      padding: 16px 48px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #fff;
-      background: linear-gradient(135deg, #4ecdc4, #2c8c85);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
+
+    .menu-panel,
+    .defeat-panel {
+      position: relative;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        rgba(8, 12, 18, 0.76);
+      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
       pointer-events: auto;
-      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .defeat-btn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 4px 20px rgba(78, 205, 196, 0.4);
+
+    .menu-panel::before,
+    .defeat-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%);
+      pointer-events: none;
     }
+
+    .menu-panel.hero {
+      padding: 34px 34px 30px;
+      border-color: rgba(255, 112, 67, 0.26);
+      background:
+        linear-gradient(135deg, rgba(255, 112, 67, 0.18), transparent 52%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
+        rgba(8, 12, 18, 0.78);
+    }
+
+    .menu-panel.side,
+    .defeat-panel.side {
+      padding: 28px;
+    }
+
+    .menu-kicker {
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(255, 226, 214, 0.75);
+    }
+
+    .menu-title {
+      margin-top: 14px;
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: clamp(44px, 8vw, 72px);
+      font-weight: 800;
+      line-height: 0.94;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text);
+      text-shadow: 0 0 26px rgba(255, 112, 67, 0.2);
+    }
+
+    .menu-subtitle {
+      margin-top: 18px;
+      max-width: 42ch;
+      font-size: 16px;
+      line-height: 1.55;
+      color: rgba(232, 243, 249, 0.78);
+    }
+
+    .menu-theater {
+      margin-top: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      background: rgba(7, 14, 20, 0.6);
+      border: 1px solid rgba(134, 246, 255, 0.2);
+      color: rgba(238, 247, 253, 0.92);
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .menu-actions {
+      margin-top: 30px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .menu-btn,
+    .defeat-btn,
+    .upgrade-btn,
+    .sell-btn {
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: 14px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .menu-btn,
+    .defeat-btn {
+      min-height: 58px;
+      padding: 0 26px;
+      border-radius: 16px;
+      color: var(--text);
+    }
+
+    .menu-btn {
+      background: linear-gradient(135deg, #ff7c4d, #da4a2a);
+      box-shadow: 0 14px 40px rgba(218, 74, 42, 0.28);
+    }
+
+    .menu-btn:hover,
+    .defeat-btn:hover,
+    .upgrade-btn:hover:not(:disabled),
+    .sell-btn:hover,
+    .tower-item:hover,
+    .ability-slot:hover {
+      transform: translateY(-2px);
+    }
+
+    .menu-secondary {
+      border: 1px solid rgba(134, 246, 255, 0.26);
+      background: rgba(8, 14, 22, 0.46);
+      color: rgba(225, 241, 249, 0.82);
+      box-shadow: none;
+    }
+
+    .menu-side-label,
+    .defeat-side-label {
+      font-size: 10px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .menu-side-heading {
+      margin-top: 10px;
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: 24px;
+      line-height: 1.05;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .menu-side-copy {
+      margin-top: 14px;
+      font-size: 14px;
+      line-height: 1.55;
+      color: rgba(227, 238, 245, 0.72);
+    }
+
+    .menu-best {
+      margin-top: 22px;
+      font-size: 14px;
+      color: rgba(222, 238, 246, 0.84);
+    }
+
+    .menu-systems {
+      margin-top: 20px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .menu-system {
+      padding: 14px 14px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(134, 246, 255, 0.14);
+      background: rgba(5, 9, 14, 0.46);
+    }
+
+    .menu-system-label {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 210, 194, 0.78);
+    }
+
+    .menu-system-copy {
+      margin-top: 7px;
+      font-size: 13px;
+      color: rgba(225, 239, 246, 0.72);
+      line-height: 1.45;
+    }
+
+    .defeat-panel.hero {
+      padding: 34px;
+      border-color: rgba(255, 112, 67, 0.26);
+      background:
+        linear-gradient(135deg, rgba(255, 112, 67, 0.18), transparent 50%),
+        rgba(8, 12, 18, 0.82);
+    }
+
+    .defeat-title {
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: clamp(34px, 6vw, 54px);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #ff8f74;
+    }
+
+    .defeat-wave,
+    .defeat-best {
+      margin-top: 12px;
+      font-size: 18px;
+      color: rgba(231, 242, 248, 0.82);
+    }
+
     .defeat-buttons {
+      margin-top: 28px;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: center;
-    }
-    .defeat-btn-secondary {
-      background: linear-gradient(135deg, #666, #444);
-    }
-    .defeat-btn-secondary:hover {
-      box-shadow: 0 4px 20px rgba(100, 100, 100, 0.4);
-    }
-    #main-menu {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, rgba(20, 30, 40, 0.95), rgba(10, 20, 30, 0.98));
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 200;
-    }
-    #main-menu.hidden {
-      display: none;
-    }
-    .menu-title {
-      font-size: 56px;
-      font-weight: bold;
-      color: #4ecdc4;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 6px;
-      text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
-    }
-    .menu-subtitle {
-      font-size: 16px;
-      color: #888;
-      margin-bottom: 40px;
-      letter-spacing: 2px;
-    }
-    .menu-best {
-      font-size: 18px;
-      color: #9b59b6;
-      margin-bottom: 32px;
-    }
-    .menu-btn {
-      padding: 20px 64px;
-      font-size: 24px;
-      font-weight: bold;
-      color: #fff;
-      background: linear-gradient(135deg, #4ecdc4, #2c8c85);
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      pointer-events: auto;
-      transition: transform 0.2s, box-shadow 0.2s;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-    .menu-btn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 4px 30px rgba(78, 205, 196, 0.5);
     }
 
-    /* Tower Panel Styles */
-    #tower-panel-container {
+    .defeat-btn {
+      justify-content: center;
+      background: linear-gradient(135deg, #86f6ff, #2aa8b8);
+      box-shadow: 0 14px 40px rgba(42, 168, 184, 0.24);
+    }
+
+    .defeat-btn-secondary {
+      background: rgba(10, 17, 24, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: none;
+    }
+
+    #tower-panel-container,
+    #abilities-bar-container,
+    #upgrade-menu {
       position: absolute;
-      bottom: 20px;
-      left: 20px;
       pointer-events: auto;
       z-index: 20;
     }
-    #tower-panel-container.hidden {
-      display: none;
+
+    #tower-panel-container {
+      left: 18px;
+      bottom: 18px;
+      max-width: min(400px, calc(100vw - 36px));
     }
+
     #tower-panel {
-      background: rgba(0, 0, 0, 0.85);
-      border-radius: 12px;
+      border-radius: 22px;
+      border: 1px solid rgba(134, 246, 255, 0.16);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        rgba(7, 12, 18, 0.78);
+      box-shadow: var(--deep-shadow);
+      backdrop-filter: var(--panel-blur);
       padding: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
+
     .tower-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
+
     .tower-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(44, 140, 133, 0.2));
-      border-radius: 8px;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
       position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 60px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background:
+        linear-gradient(135deg, rgba(134, 246, 255, 0.14), rgba(255, 112, 67, 0.09)),
+        rgba(9, 15, 22, 0.82);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
-    .tower-item:hover {
-      transform: scale(1.02);
-      box-shadow: 0 2px 12px rgba(78, 205, 196, 0.3);
-      background: linear-gradient(135deg, rgba(78, 205, 196, 0.35), rgba(44, 140, 133, 0.35));
-    }
+
     .tower-item.selected {
-      border: 2px solid #4ecdc4;
-      background: linear-gradient(135deg, rgba(78, 205, 196, 0.4), rgba(44, 140, 133, 0.4));
+      border-color: rgba(134, 246, 255, 0.44);
+      box-shadow: 0 16px 36px rgba(17, 92, 101, 0.24);
     }
+
     .tower-item.disabled {
-      opacity: 0.4;
+      opacity: 0.42;
       cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
     }
-    .tower-item.disabled:hover {
-      transform: none;
-      box-shadow: none;
-    }
+
     .tower-item-icon {
       font-size: 24px;
+      line-height: 1;
     }
+
     .tower-item-name {
       font-size: 13px;
-      color: #fff;
-      font-weight: 500;
-      flex: 1;
+      font-weight: 700;
+      color: var(--text);
     }
+
     .tower-item-cost {
-      font-size: 13px;
-      color: #ffd700;
-      font-weight: bold;
+      font-size: 12px;
+      color: var(--gold);
+      font-weight: 700;
+      letter-spacing: 0.06em;
     }
+
     .tower-hotkey {
       position: absolute;
-      top: 4px;
-      right: 4px;
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.5);
-      background: rgba(0, 0, 0, 0.3);
-      padding: 1px 5px;
-      border-radius: 4px;
+      top: 8px;
+      right: 8px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(235, 243, 248, 0.52);
     }
+
     .tower-info {
       margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 14px 14px 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(5, 10, 15, 0.54);
     }
+
     .tower-info-name {
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
       font-size: 14px;
-      color: #4ecdc4;
-      font-weight: bold;
-      margin-bottom: 6px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--core);
+      margin-bottom: 10px;
     }
-    .tower-info-stats {
-      font-size: 11px;
-      color: #aaa;
+
+    .tower-info-stats,
+    .upgrade-stats {
+      font-size: 12px;
+      color: rgba(225, 238, 245, 0.74);
     }
+
     .stat-row {
       display: flex;
       justify-content: space-between;
-      padding: 2px 0;
-    }
-    .stat-label {
-      color: #888;
-    }
-    .stat-value {
-      color: #fff;
-    }
-    .tower-info-desc {
-      font-size: 11px;
-      color: #666;
-      margin-top: 6px;
-      font-style: italic;
+      gap: 10px;
+      padding: 3px 0;
     }
 
-    /* Upgrade Menu Styles */
+    .stat-label { color: rgba(207, 223, 232, 0.54); }
+    .stat-value { color: rgba(243, 247, 250, 0.96); }
+
+    .tower-info-desc {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(220, 232, 239, 0.62);
+    }
+
     #upgrade-menu {
-      position: absolute;
-      bottom: 100px;
-      right: 20px;
-      pointer-events: auto;
-      z-index: 25;
-      background: rgba(0, 0, 0, 0.9);
-      border-radius: 12px;
+      right: 18px;
+      bottom: 112px;
+      min-width: 250px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        rgba(8, 13, 19, 0.86);
+      box-shadow: var(--deep-shadow);
+      backdrop-filter: var(--panel-blur);
       padding: 16px;
-      min-width: 220px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    #upgrade-menu.hidden {
-      display: none;
-    }
+
     .upgrade-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       margin-bottom: 12px;
-    }
-    .upgrade-tower-name {
-      font-size: 16px;
-      color: #4ecdc4;
-      font-weight: bold;
-    }
-    .upgrade-close-btn {
-      background: none;
-      border: none;
-      color: #888;
-      font-size: 20px;
-      cursor: pointer;
-      padding: 0 4px;
-    }
-    .upgrade-close-btn:hover {
-      color: #fff;
-    }
-    .upgrade-stats {
-      margin-bottom: 12px;
-    }
-    .upgrade-current-stats {
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 4px;
-    }
-    .upgrade-next-stats {
-      font-size: 12px;
-      color: #4ecdc4;
-    }
-    .upgrade-buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .upgrade-btn, .sell-btn {
-      padding: 10px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .upgrade-btn {
-      background: linear-gradient(135deg, #4ecdc4, #2c8c85);
-    }
-    .upgrade-btn:hover:not(:disabled) {
-      transform: scale(1.02);
-      box-shadow: 0 2px 12px rgba(78, 205, 196, 0.4);
-    }
-    .upgrade-btn:disabled {
-      background: #444;
-      cursor: not-allowed;
-    }
-    .sell-btn {
-      background: linear-gradient(135deg, #e74c3c, #c0392b);
-    }
-    .sell-btn:hover {
-      transform: scale(1.02);
-      box-shadow: 0 2px 12px rgba(231, 76, 60, 0.4);
     }
 
-    /* Abilities Bar Styles */
+    .upgrade-tower-name {
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--core);
+    }
+
+    .upgrade-close-btn {
+      border: none;
+      background: transparent;
+      color: rgba(219, 231, 238, 0.6);
+      font-size: 22px;
+      cursor: pointer;
+    }
+
+    .upgrade-buttons {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .upgrade-btn,
+    .sell-btn {
+      min-height: 48px;
+      border-radius: 14px;
+      color: var(--text);
+    }
+
+    .upgrade-btn {
+      background: linear-gradient(135deg, #86f6ff, #2aa8b8);
+      box-shadow: 0 14px 34px rgba(42, 168, 184, 0.2);
+    }
+
+    .upgrade-btn:disabled {
+      opacity: 0.36;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .sell-btn {
+      background: linear-gradient(135deg, #ff8a61, #d64c30);
+      box-shadow: 0 14px 34px rgba(214, 76, 48, 0.18);
+    }
+
     #abilities-bar-container {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      pointer-events: auto;
-      z-index: 20;
+      right: 18px;
+      bottom: 18px;
     }
-    #abilities-bar-container.hidden {
-      display: none;
-    }
+
     #abilities-bar {
       display: flex;
       gap: 10px;
-      background: rgba(0, 0, 0, 0.85);
-      border-radius: 12px;
       padding: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        rgba(8, 13, 19, 0.78);
+      box-shadow: var(--deep-shadow);
+      backdrop-filter: var(--panel-blur);
     }
+
     .ability-slot {
       position: relative;
-      width: 60px;
-      height: 60px;
-      background: linear-gradient(135deg, rgba(155, 89, 182, 0.3), rgba(142, 68, 173, 0.3));
-      border-radius: 8px;
-      cursor: pointer;
+      width: 68px;
+      height: 68px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      transition: transform 0.2s, box-shadow 0.2s;
+      gap: 2px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background:
+        linear-gradient(135deg, rgba(134, 246, 255, 0.14), rgba(255, 112, 67, 0.1)),
+        rgba(10, 16, 24, 0.82);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
     }
-    .ability-slot:hover {
-      transform: scale(1.05);
-      box-shadow: 0 2px 12px rgba(155, 89, 182, 0.4);
-    }
-    .ability-slot.disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    .ability-slot.disabled:hover {
-      transform: none;
-      box-shadow: none;
-    }
+
     .ability-slot.on-cooldown {
-      opacity: 0.6;
+      opacity: 0.72;
     }
-    .ability-icon {
-      font-size: 24px;
+
+    .ability-slot.disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
     }
+
+    .ability-icon { font-size: 26px; line-height: 1; }
     .ability-cost {
-      font-size: 10px;
-      color: #ffd700;
-      font-weight: bold;
+      font-size: 11px;
+      color: var(--gold);
+      font-weight: 700;
+      letter-spacing: 0.04em;
     }
+
     .ability-cooldown {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 18px;
+      background: rgba(4, 7, 10, 0.78);
+      color: var(--text);
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
       font-size: 20px;
-      font-weight: bold;
-      color: #fff;
-      border-radius: 8px;
+      font-weight: 700;
     }
-    .ability-cooldown.hidden {
-      display: none;
-    }
+
     .ability-hotkey {
       position: absolute;
-      top: 2px;
-      right: 4px;
+      top: 6px;
+      right: 7px;
       font-size: 9px;
-      color: rgba(255, 255, 255, 0.5);
-      background: rgba(0, 0, 0, 0.3);
-      padding: 1px 4px;
-      border-radius: 3px;
+      color: rgba(238, 245, 249, 0.56);
+      letter-spacing: 0.16em;
     }
+
     .ability-tooltip {
       position: absolute;
-      bottom: 100%;
       left: 50%;
+      bottom: calc(100% + 10px);
       transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.95);
-      border-radius: 8px;
-      padding: 8px 12px;
-      min-width: 150px;
-      pointer-events: none;
+      min-width: 180px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(7, 12, 18, 0.94);
+      box-shadow: var(--deep-shadow);
       opacity: 0;
-      transition: opacity 0.2s;
-      margin-bottom: 8px;
-      z-index: 30;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
     }
+
     .ability-slot:hover .ability-tooltip {
       opacity: 1;
     }
+
     .tooltip-name {
-      font-size: 12px;
-      color: #9b59b6;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    .tooltip-desc {
+      font-family: "Orbitron", "Space Grotesk", sans-serif;
       font-size: 11px;
-      color: #aaa;
-      margin-bottom: 4px;
-    }
-    .tooltip-cooldown {
-      font-size: 10px;
-      color: #666;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--core);
+      margin-bottom: 5px;
     }
 
-    /* Responsive */
+    .tooltip-desc,
+    .tooltip-cooldown {
+      font-size: 11px;
+      color: rgba(223, 235, 241, 0.7);
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .menu-shell,
+      .defeat-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .hud-top {
+        flex-direction: column;
+      }
+
+      .hud-theater,
+      .hud-objective {
+        width: 100%;
+      }
+
+      .hud-resource-stack {
+        width: 100%;
+      }
+    }
+
     @media (max-width: 768px) {
+      .hud-top {
+        padding: 12px 12px 0;
+      }
+
+      .hud-resource-stack {
+        grid-template-columns: repeat(2, minmax(110px, 1fr));
+      }
+
+      .hud-panel {
+        min-width: 0;
+      }
+
       #tower-panel-container {
         left: 10px;
-        bottom: 10px;
+        right: 10px;
+        bottom: 92px;
+        max-width: none;
       }
+
+      .tower-list {
+        grid-template-columns: 1fr;
+      }
+
       #abilities-bar-container {
+        left: 10px;
         right: 10px;
         bottom: 10px;
       }
-      .tower-item {
-        padding: 8px 10px;
+
+      #abilities-bar {
+        justify-content: space-between;
+        gap: 8px;
       }
-      .tower-item-name {
-        font-size: 11px;
-      }
+
       .ability-slot {
-        width: 50px;
-        height: 50px;
+        width: calc(25vw - 16px);
+        max-width: 72px;
+        min-width: 58px;
+        height: 62px;
       }
-      .ability-icon {
-        font-size: 20px;
+
+      #upgrade-menu {
+        left: 10px;
+        right: 10px;
+        bottom: 182px;
+        min-width: 0;
       }
     }
   </style>
@@ -556,67 +865,120 @@
 <body>
   <canvas id="application-canvas"></canvas>
 
-  <!-- HUD Overlay -->
   <div id="hud">
     <div class="hud-top">
-      <div class="hud-panel hud-wave hud-wave-panel">
-        <div>
+      <div class="hud-column">
+        <div class="hud-panel hud-theater">
+          <div class="hud-caption">Active Theater</div>
+          <div class="hud-theater-name">Broken Halo Citadel</div>
+          <div class="hud-theater-sub">Contain the breach, hold the bridge, and keep the reactor alive.</div>
+        </div>
+        <div class="hud-panel hud-objective">
+          <div class="hud-caption">Objective</div>
+          <div class="hud-objective-text">Defend the inner halo and stop leaks before they reach the core.</div>
+        </div>
+      </div>
+
+      <div class="hud-column hud-resource-stack">
+        <div class="hud-panel hud-wave hud-wave-panel">
           <div class="hud-label" data-i18n="WAVE">Wave</div>
           <div class="hud-value" id="hud-wave-value">1</div>
+          <div class="hud-sub">Best: <span id="hud-highwave-value">0</span></div>
         </div>
-        <div class="hud-sub">Best: <span id="hud-highwave-value">0</span></div>
-      </div>
-      <div class="hud-panel hud-hp">
-        <div class="hud-label" data-i18n="BASE_HP">Base HP</div>
-        <div class="hud-value" id="hud-hp-value">10/10</div>
-      </div>
-      <div class="hud-panel hud-gold">
-        <div class="hud-label" data-i18n="GOLD">Gold</div>
-        <div class="hud-value" id="hud-gold-value">100</div>
+        <div class="hud-panel hud-hp">
+          <div class="hud-label" data-i18n="BASE_HP">Core Integrity</div>
+          <div class="hud-value" id="hud-hp-value">10/10</div>
+        </div>
+        <div class="hud-panel hud-gold">
+          <div class="hud-label" data-i18n="GOLD">Command Budget</div>
+          <div class="hud-value" id="hud-gold-value">220</div>
+        </div>
+        <div class="hud-panel hud-highwave">
+          <div class="hud-label">Tactical Note</div>
+          <div class="hud-sub">Forward pads lock the breach. Inner pads save bad runs.</div>
+        </div>
       </div>
     </div>
 
-    <!-- Build Phase Timer -->
     <div class="hud-timer hud-hidden" id="hud-timer">
       <div class="hud-panel">
-        <div class="hud-label" data-i18n="BUILD_PHASE">Build Phase</div>
-        <div class="hud-value" id="hud-timer-value">3.0</div>
+        <div class="hud-label" data-i18n="BUILD_PHASE">Build Window</div>
+        <div class="hud-value" id="hud-timer-value">8.0</div>
       </div>
     </div>
   </div>
 
-  <!-- Defeat Screen -->
   <div id="defeat-screen" class="hidden">
-    <div class="defeat-title" data-i18n="DEFEAT">Defeat</div>
-    <div class="defeat-wave">Wave: <span id="defeat-wave-value">1</span></div>
-    <div class="defeat-best">Best: <span id="defeat-best-value">0</span></div>
-    <div class="defeat-buttons">
-      <button class="defeat-btn" id="defeat-continue-btn" data-i18n="CONTINUE_AD">Continue (Ad)</button>
-      <button class="defeat-btn defeat-btn-secondary" id="defeat-restart-btn" data-i18n="RESTART">Restart</button>
+    <div class="defeat-shell">
+      <div class="defeat-panel hero">
+        <div class="defeat-side-label">Citadel Status</div>
+        <div class="defeat-title" data-i18n="DEFEAT">Breach Confirmed</div>
+        <div class="defeat-wave">Wave: <span id="defeat-wave-value">1</span></div>
+        <div class="defeat-best">Best: <span id="defeat-best-value">0</span></div>
+        <div class="defeat-buttons">
+          <button class="defeat-btn" id="defeat-continue-btn" data-i18n="CONTINUE_AD">Emergency Continue</button>
+          <button class="defeat-btn defeat-btn-secondary" id="defeat-restart-btn" data-i18n="RESTART">Re-arm Bastion</button>
+        </div>
+      </div>
+
+      <div class="defeat-panel side">
+        <div class="defeat-side-label">After Action</div>
+        <div class="menu-side-heading">The inner halo collapsed.</div>
+        <div class="menu-side-copy">
+          Reposition your early towers, build the bridge killbox earlier, and keep one panic slot uncommitted near the core.
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Main Menu -->
   <div id="main-menu">
-    <div class="menu-title">Core Bastion</div>
-    <div class="menu-subtitle" data-i18n="SUBTITLE">Tower Defense</div>
-    <div class="menu-best">Best Wave: <span id="menu-best-value">0</span></div>
-    <button class="menu-btn" id="menu-play-btn" data-i18n="PLAY">Play</button>
+    <div class="menu-shell">
+      <div class="menu-panel hero">
+        <div class="menu-kicker">Rescue Pass Battlefield</div>
+        <div class="menu-title">Core Bastion</div>
+        <div class="menu-subtitle" data-i18n="SUBTITLE">
+          A breached orbital fortress is collapsing around its reactor. The first line fails fast, the bridge decides the run, and the inner halo is your last answer.
+        </div>
+        <div class="menu-theater">Broken Halo Citadel</div>
+        <div class="menu-actions">
+          <button class="menu-btn" id="menu-play-btn" data-i18n="PLAY">Deploy</button>
+          <button class="menu-btn menu-secondary" type="button">Hold the Core</button>
+        </div>
+      </div>
+
+      <div class="menu-panel side">
+        <div class="menu-side-label">Command Brief</div>
+        <div class="menu-side-heading">Fight for the bridge. Finish at the halo.</div>
+        <div class="menu-side-copy">
+          Seven authored emplacements cover a breached outer wall, a lethal bridge killbox, and a desperate final ring around the reactor.
+        </div>
+        <div class="menu-best">Best Wave: <span id="menu-best-value">0</span></div>
+
+        <div class="menu-systems">
+          <div class="menu-system">
+            <div class="menu-system-label">Outer Breach</div>
+            <div class="menu-system-copy">Forward pads let you punish the opening lane before enemies lock the bridge.</div>
+          </div>
+          <div class="menu-system">
+            <div class="menu-system-label">Bridge Killbox</div>
+            <div class="menu-system-copy">Crossfire towers dominate the central crossing and decide waves 3 to 8.</div>
+          </div>
+          <div class="menu-system">
+            <div class="menu-system-label">Inner Halo</div>
+            <div class="menu-system-copy">Reserve panic pads near the core for the runs where the front line breaks.</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Tower Panel -->
   <div id="tower-panel-container" class="hidden">
     <div id="tower-panel">
-      <div class="tower-list">
-        <!-- Tower items will be rendered by TowerPanelController -->
-      </div>
-      <div class="tower-info">
-        <!-- Tower info will be rendered by TowerPanelController -->
-      </div>
+      <div class="tower-list"></div>
+      <div class="tower-info"></div>
     </div>
   </div>
 
-  <!-- Upgrade Menu -->
   <div id="upgrade-menu" class="hidden">
     <div class="upgrade-header">
       <div class="upgrade-tower-name">Tower Name</div>
@@ -632,11 +994,8 @@
     </div>
   </div>
 
-  <!-- Abilities Bar -->
   <div id="abilities-bar-container" class="hidden">
-    <div id="abilities-bar">
-      <!-- Ability slots will be rendered by AbilityBarController -->
-    </div>
+    <div id="abilities-bar"></div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
