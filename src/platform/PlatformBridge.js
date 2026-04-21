@@ -39,8 +39,11 @@ export async function createPlatformBridge(options = {}) {
         const vkplay = new VKPlayBridge();
         await vkplay.init();
         return vkplay;
-      case 'editor':
-        return new EditorBridge();
+      case 'editor': {
+        const editor = new EditorBridge();
+        await editor.init();
+        return editor;
+      }
     }
   }
   
@@ -91,7 +94,9 @@ export async function createPlatformBridge(options = {}) {
   
   // Default to Editor bridge for local development
   console.log('[PlatformBridge] Using EditorBridge (local development)');
-  return new EditorBridge();
+  const editor = new EditorBridge();
+  await editor.init();
+  return editor;
 }
 
 // Re-export bridge classes
