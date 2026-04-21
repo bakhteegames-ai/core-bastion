@@ -1,11 +1,6 @@
 import * as pc from 'playcanvas';
 import { WAYPOINTS } from '../data/level.js';
-import {
-  ENEMY_BASE_HP,
-  ENEMY_BASE_SPEED,
-  ENEMY_COLLISION_RADIUS,
-  ENEMY_GOLD_REWARD
-} from '../data/balance.js';
+import { ENEMY_COLLISION_RADIUS } from '../data/balance.js';
 import { getEnemyType, getEnemyStats } from '../data/enemyTypes.js';
 
 /**
@@ -21,85 +16,127 @@ export class EnemyAgent {
     this.app = app;
     this.entity = null;
     this.assetLoader = options.assetLoader || null;
+    this._waypoints = WAYPOINTS;
+    this._onReachEndpointCallback = null;
+    this._onDeathCallback = null;
+    this._onSummonMinionsCallback = null;
+    this.modelEntity = null;
+    this.bodyEntity = null;
+    this.coreEntity = null;
+    this.shieldEntity = null;
+    this._bodyBasePosition = null;
+    this._bodyBaseScale = null;
+    this._coreBaseScale = null;
+    this.init(options);
+  }
 
-    // Get enemy type from typeId or use defaults
-    const typeId = options.typeId || 'grunt';
+  init(options = {}) {
+    const typeId = options.typeId || this._typeId || 'grunt';
     const enemyType = getEnemyType(typeId);
     const stats = getEnemyStats(typeId, options.waveNumber || 1);
+    const maxHP = options.maxHP ?? options.hp ?? stats.hp;
 
-    // Core type identifier
+    this.assetLoader = options.assetLoader || this.assetLoader;
     this._typeId = typeId;
-
-    // Stats - use options first, then calculated stats, then defaults
-    this._hp = options.hp ?? stats.hp;
-    this._maxHP = stats.hp;
+    this._hp = options.hp ?? maxHP;
+    this._maxHP = maxHP;
     this._speed = options.speed ?? stats.speed;
     this._collisionRadius = ENEMY_COLLISION_RADIUS;
     this._goldReward = options.goldReward ?? stats.goldReward;
-    this._leakDamage = stats.leakDamage;
-
-    // Enemy type properties
-    this._armor = stats.armor || 0;
-    this._canFly = stats.canFly || false;
-    this._scale = stats.scale || 1.0;
+    this._leakDamage = options.leakDamage ?? stats.leakDamage;
+    this._armor = options.armor ?? stats.armor ?? 0;
+    this._canFly = options.canFly ?? stats.canFly ?? false;
+    this._scale = options.scale ?? stats.scale ?? 1.0;
     this._color = enemyType.color;
-    this._special = stats.special || null;
+    this._special = options.special ?? stats.special ?? null;
     this._name = enemyType.name;
     this._nameRu = enemyType.nameRu;
 
-    // Slow effect
     this._slowFactor = 1.0;
     this._slowDuration = 0;
-
-    // Boss abilities
-    this._abilities = stats.abilities || [];
+    this._abilities = options.abilities ?? stats.abilities ?? [];
     this._abilityTriggers = { heal: 0.7, summon: 0.5, shield: 0.3 };
     this._triggeredAbilities = new Set();
     this._shieldActive = false;
     this._shieldReduction = 0;
-
-    // Stealth visibility state
-    this._isVisible = this._special !== 'stealth'; // Stealth starts invisible
-    
-    // Healer state
+    this._isVisible = this._special !== 'stealth';
     this._lastHealTime = 0;
-    
-    // Spawner state
     this._lastSpawnTime = 0;
-    
-    // Speedster dash state
     this._isDashing = false;
     this._dashCooldown = 0;
-
-    // Minion summon callback
-    this._onSummonMinionsCallback = null;
-
-    // Path state
-    this._waypoints = WAYPOINTS;
     this._currentWaypointIndex = 0;
     this._isActive = true;
+    this._animTime = Math.random() * Math.PI * 2;
 
-    // Callbacks
     this._onReachEndpointCallback = null;
     this._onDeathCallback = null;
+    this._onSummonMinionsCallback = null;
 
-    // Create visual entity
-    this._createEntity();
+    if (!this.entity) {
+      this._createEntity();
+    } else {
+      this._applySpawnState();
+    }
+
+    return this;
+  }
+
+  _applySpawnState() {
+    if (!this.entity) return;
+
+    const spawnY = this._canFly ? 1.5 : 0;
+    this.entity.enabled = true;
+    this.entity.setLocalPosition(this._waypoints[0].x, spawnY, this._waypoints[0].z);
+    this.entity.setLocalScale(this._scale, this._scale, this._scale);
+    this._resetVisualState();
+  }
+
+  _cacheBaseTransforms() {
+    this._bodyBasePosition = this.bodyEntity?.getLocalPosition?.().clone?.() || null;
+    this._bodyBaseScale = this.bodyEntity?.getLocalScale?.().clone?.() || null;
+    this._coreBaseScale = this.coreEntity?.getLocalScale?.().clone?.() || null;
+  }
+
+  _setBodyOpacity(opacity) {
+    if (this.bodyEntity?.render?.material) {
+      this.bodyEntity.render.material.opacity = opacity;
+      this.bodyEntity.render.material.update();
+    }
+  }
+
+  _resetVisualState() {
+    if (this.shieldEntity) {
+      this.shieldEntity.destroy();
+      this.shieldEntity = null;
+    }
+
+    if (this.bodyEntity && this._bodyBasePosition && this._bodyBaseScale) {
+      this.bodyEntity.setLocalPosition(
+        this._bodyBasePosition.x,
+        this._bodyBasePosition.y,
+        this._bodyBasePosition.z
+      );
+      this.bodyEntity.setLocalScale(
+        this._bodyBaseScale.x,
+        this._bodyBaseScale.y,
+        this._bodyBaseScale.z
+      );
+    }
+
+    if (this.coreEntity && this._coreBaseScale) {
+      this.coreEntity.setLocalScale(
+        this._coreBaseScale.x,
+        this._coreBaseScale.y,
+        this._coreBaseScale.z
+      );
+    }
+
+    this._setBodyOpacity(this._special === 'stealth' && !this._isVisible ? 0.3 : 1.0);
   }
 
   _createEntity() {
     this.entity = new pc.Entity('Enemy');
     
-    // Set spawn position with flying offset if needed
-    const spawnY = this._canFly ? 1.5 : 0;
-    this.entity.setLocalPosition(this._waypoints[0].x, spawnY, this._waypoints[0].z);
-
-    // Apply scale
-    this.entity.setLocalScale(this._scale, this._scale, this._scale);
-
-    // Animation time for wobble effect
-    this._animTime = Math.random() * Math.PI * 2;
-
     // Try to use GLB model first
     if (this.assetLoader) {
       const modelEntity = this.assetLoader.createEntityFromModel('enemy');
@@ -111,6 +148,8 @@ export class EnemyAgent {
         this.bodyEntity = modelEntity;
         
         this.app.root.addChild(this.entity);
+        this._cacheBaseTransforms();
+        this._resetVisualState();
         console.log(`[EnemyAgent] Spawned ${this._typeId} with GLB model at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
         return;
       }
@@ -119,6 +158,8 @@ export class EnemyAgent {
     // Fallback to procedural model
     this._createProceduralModel();
     this.app.root.addChild(this.entity);
+    this._cacheBaseTransforms();
+    this._resetVisualState();
     console.log(`[EnemyAgent] Spawned ${this._typeId} (${this._nameRu}) with procedural model at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
   }
 
@@ -614,6 +655,7 @@ export class EnemyAgent {
     if (this._slowDuration > 0) {
       this._slowDuration -= dt;
       if (this._slowDuration <= 0) {
+        this._slowDuration = 0;
         this._slowFactor = 1.0;
         console.log('[EnemyAgent] Slow effect expired');
       }
@@ -668,11 +710,7 @@ export class EnemyAgent {
     
     // Apply visibility for stealth enemies
     if (this._special === 'stealth' && !this._isVisible) {
-      // Stealth enemy - make semi-transparent
-      if (this.bodyEntity && this.bodyEntity.render) {
-        this.bodyEntity.render.material.opacity = 0.3;
-        this.bodyEntity.render.material.update();
-      }
+      this._setBodyOpacity(0.3);
     }
     
     this.entity.setLocalPosition(newX, y, newZ);
@@ -770,15 +808,25 @@ export class EnemyAgent {
     // Base wobble for body
     if (this.bodyEntity) {
       const wobble = Math.sin(this._animTime) * 0.1;
-      const yBase = this._canFly ? 0 : 0.6;
-      this.bodyEntity.setLocalPosition(0, yBase + wobble * 0.3, 0);
-      this.bodyEntity.setLocalScale(0.8 + wobble * 0.05, 1.0 - wobble * 0.05, 0.8 + wobble * 0.05);
+      if (this._bodyBasePosition && this._bodyBaseScale) {
+        this.bodyEntity.setLocalPosition(
+          this._bodyBasePosition.x,
+          this._bodyBasePosition.y + wobble * 0.3,
+          this._bodyBasePosition.z
+        );
+        this.bodyEntity.setLocalScale(
+          this._bodyBaseScale.x + wobble * 0.05,
+          this._bodyBaseScale.y - wobble * 0.05,
+          this._bodyBaseScale.z + wobble * 0.05
+        );
+      }
     }
 
     // Core pulse
     if (this.coreEntity) {
-      const pulse = 0.25 + Math.sin(this._animTime * 2) * 0.05;
-      this.coreEntity.setLocalScale(pulse, pulse, pulse);
+      const pulse = Math.sin(this._animTime * 2) * 0.05;
+      const base = this._coreBaseScale || new pc.Vec3(0.25, 0.25, 0.25);
+      this.coreEntity.setLocalScale(base.x + pulse, base.y + pulse, base.z + pulse);
     }
 
     // Type-specific animations
@@ -806,13 +854,14 @@ export class EnemyAgent {
    */
   _reachEndpoint() {
     console.log(`[EnemyAgent] ${this._typeId} reached endpoint, leak damage: ${this._leakDamage}`);
+    this._isActive = false;
 
     if (this._onReachEndpointCallback) {
       this._onReachEndpointCallback(this);
     }
-
-    this._isActive = false;
-    this.destroy();
+    if (this.entity) {
+      this.entity.enabled = false;
+    }
   }
 
   /**
@@ -874,11 +923,7 @@ export class EnemyAgent {
     if (hpPercent <= threshold && !this._isVisible) {
       this._isVisible = true;
       console.log('[EnemyAgent] Stealth enemy revealed!');
-      // Visual feedback - make visible
-      if (this.bodyEntity && this.bodyEntity.render) {
-        this.bodyEntity.render.material.opacity = 1.0;
-        this.bodyEntity.render.material.update();
-      }
+      this._setBodyOpacity(1.0);
     }
   }
 
@@ -975,6 +1020,11 @@ export class EnemyAgent {
     this._shieldActive = true;
     this._shieldReduction = reduction;
 
+    if (this.shieldEntity) {
+      this.shieldEntity.destroy();
+      this.shieldEntity = null;
+    }
+
     // Visual feedback - could add shield effect here
     if (this.entity) {
       const shield = new pc.Entity('BossShield');
@@ -1006,6 +1056,7 @@ export class EnemyAgent {
    */
   _die() {
     if (!this._isActive) return;
+    this._isActive = false;
 
     console.log(`[EnemyAgent] ${this._typeId} died, gold reward: ${this._goldReward}`);
 
@@ -1013,9 +1064,41 @@ export class EnemyAgent {
     if (this._onDeathCallback) {
       this._onDeathCallback(this);
     }
+    if (this.entity) {
+      this.entity.enabled = false;
+    }
+  }
 
+  /**
+   * Reset pooled state.
+   */
+  reset() {
     this._isActive = false;
-    this.destroy();
+    this._currentWaypointIndex = 0;
+    this._slowFactor = 1.0;
+    this._slowDuration = 0;
+    this._shieldActive = false;
+    this._shieldReduction = 0;
+    this._isVisible = this._special !== 'stealth';
+    this._lastHealTime = 0;
+    this._lastSpawnTime = 0;
+    this._isDashing = false;
+    this._dashCooldown = 0;
+    this._triggeredAbilities?.clear?.();
+    this._onReachEndpointCallback = null;
+    this._onDeathCallback = null;
+    this._onSummonMinionsCallback = null;
+
+    if (this.shieldEntity) {
+      this.shieldEntity.destroy();
+      this.shieldEntity = null;
+    }
+
+    if (this.entity) {
+      this._resetVisualState();
+      this.entity.enabled = false;
+      this.entity.setLocalPosition(0, -100, 0);
+    }
   }
 
   /**
