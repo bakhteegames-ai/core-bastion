@@ -15,7 +15,12 @@ export class BuildManager {
     this.economyService = economyService;
     this.sceneFactory = sceneFactory;
     this.assetLoader = assetLoader;
+    this.waveManager = null;
     this.towers = []; // Track placed towers
+  }
+
+  setWaveManager(waveManager) {
+    this.waveManager = waveManager;
   }
 
   /**
@@ -37,8 +42,8 @@ export class BuildManager {
 
     // Apply cost modifier from wave system if available
     let finalCost = towerType.cost;
-    if (window.__game && window.__game.waveManager) {
-      const costMult = window.__game.waveManager.modifierSystem.getTowerCostMultiplier();
+    if (this.waveManager?.modifierSystem) {
+      const costMult = this.waveManager.modifierSystem.getTowerCostMultiplier();
       finalCost = Math.round(finalCost * costMult);
     }
 
@@ -248,7 +253,6 @@ export class BuildManager {
    * Create Archer Tower - tall thin tower with conical roof.
    */
   _createArcherTower(tower, slotId, color) {
-    // Base platform
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
     base.setLocalPosition(0, 0.15, 0);
@@ -256,7 +260,6 @@ export class BuildManager {
     this._applyMaterial(base, { r: 0.35, g: 0.25, b: 0.15 });
     tower.addChild(base);
 
-    // Main tower body
     const body = new pc.Entity(`TowerBody_${slotId}`);
     body.addComponent('render', { type: 'cylinder' });
     body.setLocalPosition(0, 0.9, 0);
@@ -264,7 +267,6 @@ export class BuildManager {
     this._applyMaterial(body, color);
     tower.addChild(body);
 
-    // Conical roof
     const roof = new pc.Entity(`TowerRoof_${slotId}`);
     roof.addComponent('render', { type: 'cone' });
     roof.setLocalPosition(0, 1.9, 0);
@@ -274,7 +276,6 @@ export class BuildManager {
     tower.addChild(roof);
     tower.turret = roof;
 
-    // Arrow slits
     for (let i = 0; i < 4; i++) {
       const slit = new pc.Entity(`Slit_${i}_${slotId}`);
       slit.addComponent('render', { type: 'box' });
@@ -286,11 +287,7 @@ export class BuildManager {
     }
   }
 
-  /**
-   * Create Cannon Tower - low wide platform with cannon.
-   */
   _createCannonTower(tower, slotId, color) {
-    // Wide base
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
     base.setLocalPosition(0, 0.2, 0);
@@ -298,7 +295,6 @@ export class BuildManager {
     this._applyMaterial(base, { r: 0.3, g: 0.3, b: 0.35 });
     tower.addChild(base);
 
-    // Platform
     const platform = new pc.Entity(`Platform_${slotId}`);
     platform.addComponent('render', { type: 'cylinder' });
     platform.setLocalPosition(0, 0.5, 0);
@@ -306,7 +302,6 @@ export class BuildManager {
     this._applyMaterial(platform, color);
     tower.addChild(platform);
 
-    // Cannon barrel
     const barrel = new pc.Entity(`Barrel_${slotId}`);
     barrel.addComponent('render', { type: 'cylinder' });
     barrel.setLocalPosition(0, 0.7, 0.4);
@@ -316,7 +311,6 @@ export class BuildManager {
     tower.addChild(barrel);
     tower.turret = barrel;
 
-    // Metal rings on barrel
     for (let i = 0; i < 2; i++) {
       const ring = new pc.Entity(`Ring_${i}_${slotId}`);
       ring.addComponent('render', { type: 'torus' });
@@ -328,11 +322,7 @@ export class BuildManager {
     }
   }
 
-  /**
-   * Create Ice Tower - crystal with floating ice shards.
-   */
   _createIceTower(tower, slotId, color) {
-    // Frost base
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
     base.setLocalPosition(0, 0.1, 0);
@@ -340,7 +330,6 @@ export class BuildManager {
     this._applyMaterial(base, { r: 0.5, g: 0.6, b: 0.7 });
     tower.addChild(base);
 
-    // Main crystal
     const crystal = new pc.Entity(`Crystal_${slotId}`);
     crystal.addComponent('render', { type: 'cone' });
     crystal.setLocalPosition(0, 1.0, 0);
@@ -350,7 +339,6 @@ export class BuildManager {
     tower.addChild(crystal);
     tower.turret = crystal;
 
-    // Floating ice shards
     for (let i = 0; i < 3; i++) {
       const shard = new pc.Entity(`Shard_${i}_${slotId}`);
       shard.addComponent('render', { type: 'cone' });
@@ -365,7 +353,6 @@ export class BuildManager {
       tower.addChild(shard);
     }
 
-    // Frost ring at base
     const frostRing = new pc.Entity(`FrostRing_${slotId}`);
     frostRing.addComponent('render', { type: 'torus' });
     frostRing.setLocalPosition(0, 0.15, 0);
@@ -375,11 +362,7 @@ export class BuildManager {
     tower.addChild(frostRing);
   }
 
-  /**
-   * Create Lightning Tower - dark tower with lightning rod and sphere.
-   */
   _createLightningTower(tower, slotId, color) {
-    // Dark base
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
     base.setLocalPosition(0, 0.2, 0);
@@ -387,7 +370,6 @@ export class BuildManager {
     this._applyMaterial(base, { r: 0.15, g: 0.15, b: 0.2 });
     tower.addChild(base);
 
-    // Dark tower body
     const body = new pc.Entity(`TowerBody_${slotId}`);
     body.addComponent('render', { type: 'cylinder' });
     body.setLocalPosition(0, 0.9, 0);
@@ -395,7 +377,6 @@ export class BuildManager {
     this._applyMaterial(body, { r: 0.2, g: 0.15, b: 0.25 });
     tower.addChild(body);
 
-    // Lightning rod
     const rod = new pc.Entity(`Rod_${slotId}`);
     rod.addComponent('render', { type: 'cylinder' });
     rod.setLocalPosition(0, 1.8, 0);
@@ -404,7 +385,6 @@ export class BuildManager {
     tower.addChild(rod);
     tower.turret = rod;
 
-    // Energy sphere at top
     const sphere = new pc.Entity(`Sphere_${slotId}`);
     sphere.addComponent('render', { type: 'sphere' });
     sphere.setLocalPosition(0, 2.3, 0);
@@ -412,7 +392,6 @@ export class BuildManager {
     this._applyMaterial(sphere, color, { emissive: true });
     tower.addChild(sphere);
 
-    // Energy rings
     for (let i = 0; i < 2; i++) {
       const ring = new pc.Entity(`EnergyRing_${i}_${slotId}`);
       ring.addComponent('render', { type: 'torus' });
@@ -424,11 +403,7 @@ export class BuildManager {
     }
   }
 
-  /**
-   * Create Sniper Tower - very tall with observation deck.
-   */
   _createSniperTower(tower, slotId, color) {
-    // Base
     const base = new pc.Entity(`TowerBase_${slotId}`);
     base.addComponent('render', { type: 'cylinder' });
     base.setLocalPosition(0, 0.15, 0);
@@ -436,7 +411,6 @@ export class BuildManager {
     this._applyMaterial(base, { r: 0.25, g: 0.2, b: 0.2 });
     tower.addChild(base);
 
-    // Tall thin body
     const body = new pc.Entity(`TowerBody_${slotId}`);
     body.addComponent('render', { type: 'cylinder' });
     body.setLocalPosition(0, 1.5, 0);
@@ -444,7 +418,6 @@ export class BuildManager {
     this._applyMaterial(body, color);
     tower.addChild(body);
 
-    // Observation deck
     const deck = new pc.Entity(`Deck_${slotId}`);
     deck.addComponent('render', { type: 'cylinder' });
     deck.setLocalPosition(0, 2.9, 0);
@@ -452,7 +425,6 @@ export class BuildManager {
     this._applyMaterial(deck, { r: 0.35, g: 0.25, b: 0.25 });
     tower.addChild(deck);
 
-    // Scope/sight
     const scope = new pc.Entity(`Scope_${slotId}`);
     scope.addComponent('render', { type: 'cylinder' });
     scope.setLocalPosition(0, 3.2, 0.25);
@@ -462,7 +434,6 @@ export class BuildManager {
     tower.addChild(scope);
     tower.turret = scope;
 
-    // Antenna
     const antenna = new pc.Entity(`Antenna_${slotId}`);
     antenna.addComponent('render', { type: 'cylinder' });
     antenna.setLocalPosition(0, 3.5, 0);
@@ -470,7 +441,6 @@ export class BuildManager {
     this._applyMaterial(antenna, { r: 0.3, g: 0.3, b: 0.35 });
     tower.addChild(antenna);
 
-    // Support struts
     for (let i = 0; i < 3; i++) {
       const strut = new pc.Entity(`Strut_${i}_${slotId}`);
       strut.addComponent('render', { type: 'box' });
@@ -486,9 +456,6 @@ export class BuildManager {
     }
   }
 
-  /**
-   * Apply material to an entity.
-   */
   _applyMaterial(entity, color, options = {}) {
     const material = new pc.StandardMaterial();
     material.diffuse = new pc.Color(color.r, color.g, color.b);
@@ -507,11 +474,7 @@ export class BuildManager {
     entity.render.material = material;
   }
 
-  /**
-   * Create a visual range indicator for the tower.
-   */
   _createRangeIndicator(tower, position, range) {
-    // Ring to show range
     const ring = new pc.Entity(`TowerRange_${tower.name}`);
     ring.addComponent('render', { type: 'torus' });
     ring.setLocalPosition(position.x, 0.05, position.z);
@@ -532,23 +495,14 @@ export class BuildManager {
     tower.rangeIndicator = ring;
   }
 
-  /**
-   * Get tower by slot ID.
-   */
   getTower(slotId) {
     return this.towers.find(t => t.slotId === slotId) || null;
   }
 
-  /**
-   * Get all placed towers.
-   */
   getTowers() {
     return this.towers;
   }
 
-  /**
-   * Remove all towers (for restart).
-   */
   removeAllTowers() {
     this.towers.forEach((towerData) => {
       if (towerData.entity) {
