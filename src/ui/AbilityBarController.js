@@ -1,60 +1,9 @@
+import { ABILITIES } from '../data/abilities.js';
+
 /**
  * Ability Bar Controller
- * Controls active abilities with cooldowns and costs.
- * Runtime-safe version: only exposes abilities that are actually wired in GameBootstrap.
+ * Controls shipped active abilities with cooldowns and costs.
  */
-
-/**
- * Gameplay-wired ability definitions.
- * Keep ids aligned with GameBootstrap._onUseAbility switch cases.
- */
-export const ABILITIES = {
-  airstrike: {
-    id: 'airstrike',
-    name: 'Air Strike',
-    nameRu: 'Авиаудар',
-    cost: 100,
-    cooldown: 60,
-    icon: '💣',
-    description: 'Deal 50 damage to all enemies',
-    descriptionRu: 'Нанести 50 урона всем врагам',
-    hotkey: '1'
-  },
-  freeze: {
-    id: 'freeze',
-    name: 'Freeze',
-    nameRu: 'Заморозка',
-    cost: 75,
-    cooldown: 45,
-    icon: '❄️',
-    description: 'Slow all enemies for 3s',
-    descriptionRu: 'Замедлить всех врагов на 3 сек',
-    hotkey: '2'
-  },
-  heal: {
-    id: 'heal',
-    name: 'Heal Base',
-    nameRu: 'Лечение базы',
-    cost: 150,
-    cooldown: 90,
-    icon: '❤️',
-    description: 'Restore 3 base HP',
-    descriptionRu: 'Восстановить 3 HP базы',
-    hotkey: '3'
-  },
-  goldrush: {
-    id: 'goldrush',
-    name: 'Gold Rush',
-    nameRu: 'Золотая лихорадка',
-    cost: 0,
-    cooldown: 120,
-    icon: '💰',
-    description: '2x gold for 10s',
-    descriptionRu: '2x золота на 10 сек',
-    hotkey: '4'
-  }
-};
-
 export class AbilityBarController {
   constructor(options = {}) {
     this.economyService = options.economyService;
@@ -142,10 +91,6 @@ export class AbilityBarController {
     this._setupSlotClickHandlers();
   }
 
-  /**
-   * Use an ability.
-   * Cost is validated here, but the actual gold spend is delegated to GameBootstrap.
-   */
   useAbility(abilityId) {
     const ability = ABILITIES[abilityId];
     if (!ability) {
@@ -154,12 +99,10 @@ export class AbilityBarController {
     }
 
     if (this.cooldowns[abilityId] > 0) {
-      console.log(`[AbilityBar] Ability ${abilityId} on cooldown: ${this.cooldowns[abilityId].toFixed(1)}s`);
       return false;
     }
 
     if (this.economyService && this.economyService.gold < ability.cost) {
-      console.log(`[AbilityBar] Not enough gold for ${abilityId}. Need ${ability.cost}, have ${this.economyService.gold}`);
       return false;
     }
 
@@ -175,8 +118,6 @@ export class AbilityBarController {
     this.cooldowns[abilityId] = ability.cooldown;
     this._updateSlotDisplay(abilityId);
     this.updateAffordability();
-
-    console.log(`[AbilityBar] Used ability: ${abilityId}`);
     return true;
   }
 
@@ -226,11 +167,8 @@ export class AbilityBarController {
 
       if (slot && this.cooldowns[abilityId] <= 0) {
         const isAffordable = !this.economyService || this.economyService.gold >= ability.cost;
-        if (isAffordable) {
-          slot.classList.remove('disabled');
-        } else {
-          slot.classList.add('disabled');
-        }
+        if (isAffordable) slot.classList.remove('disabled');
+        else slot.classList.add('disabled');
       }
     });
   }
@@ -256,16 +194,12 @@ export class AbilityBarController {
   }
 
   show() {
-    if (this.container) {
-      this.container.classList.remove('hidden');
-    }
+    if (this.container) this.container.classList.remove('hidden');
     this._visible = true;
   }
 
   hide() {
-    if (this.container) {
-      this.container.classList.add('hidden');
-    }
+    if (this.container) this.container.classList.add('hidden');
     this._visible = false;
   }
 
