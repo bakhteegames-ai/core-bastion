@@ -20,6 +20,22 @@ export class PlatformBridge {
     console.log('[PlatformBridge] ready()');
   }
 
+  get isInitialized() {
+    return this._initialized === true;
+  }
+
+  set isInitialized(value) {
+    this._initialized = Boolean(value);
+  }
+
+  get isYandex() {
+    return false;
+  }
+
+  get playerName() {
+    return this._player?.getName?.() || this._player?.publicName || this._player?.name || 'Player';
+  }
+
   isPlatform() {
     return false;
   }
