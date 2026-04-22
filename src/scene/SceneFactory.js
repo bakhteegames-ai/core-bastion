@@ -72,8 +72,8 @@ export class SceneFactory {
     this.createZoneAnchors();
     if (!hasEnvironmentAsset) {
       createBrokenHaloVisualPass(this);
-      this.createPathVisualization();
     }
+    this.createPathVisualization();
     this.createBuildSlotMarkers();
     if (!hasEnvironmentAsset) {
       createBrokenHaloPolishPass(this);
@@ -474,7 +474,7 @@ export class SceneFactory {
     const camera = new pc.Entity('MainCamera');
     camera.addComponent('camera', {
       clearColor: this._toColor(this.currentLevel.theme.skyColor),
-      fov: 52,
+      fov: this.currentLevel.camera?.fov || 48,
       near: 0.1,
       far: 120
     });
