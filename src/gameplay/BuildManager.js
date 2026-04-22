@@ -17,6 +17,7 @@ export class BuildManager {
     this.assetLoader = assetLoader;
     this.waveManager = null;
     this.towers = []; // Track placed towers
+    this.rangeIndicatorsVisible = false;
   }
 
   setWaveManager(waveManager) {
@@ -491,6 +492,7 @@ export class BuildManager {
     material.opacity = 0.4;
     material.update();
     ring.render.material = material;
+    ring.enabled = this.rangeIndicatorsVisible;
 
     this.app.root.addChild(ring);
     tower.rangeIndicator = ring;
@@ -516,5 +518,14 @@ export class BuildManager {
     });
     this.towers = [];
     console.log('[BuildManager] All towers removed');
+  }
+
+  setRangeIndicatorsVisible(visible) {
+    this.rangeIndicatorsVisible = visible;
+    this.towers.forEach((towerData) => {
+      if (towerData.entity?.rangeIndicator) {
+        towerData.entity.rangeIndicator.enabled = visible;
+      }
+    });
   }
 }

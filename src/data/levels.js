@@ -34,11 +34,13 @@ const BROKEN_HALO = {
     wallHeight: 3.2
   },
   camera: {
-    x: -3.6,
-    y: 9.4,
-    z: 12.4,
-    fov: 42,
-    target: { x: 1.8, y: 0.65, z: 0.8 }
+    projection: 'orthographic',
+    orthoHeight: 11.2,
+    x: -6.8,
+    y: 18.5,
+    z: 10.2,
+    fov: 30,
+    target: { x: 1.8, y: 0.2, z: 0.2 }
   },
   spawn: { x: -14, z: 8 },
   base: { x: 11, z: -5 },

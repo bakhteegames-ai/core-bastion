@@ -23,6 +23,7 @@ export class SceneFactory {
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.hasEnvironmentAsset = false;
     this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
@@ -48,6 +49,7 @@ export class SceneFactory {
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.hasEnvironmentAsset = false;
     this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
@@ -57,6 +59,7 @@ export class SceneFactory {
     this.createLighting();
     this.createGroundShell();
     const hasEnvironmentAsset = this.createEnvironmentAsset();
+    this.hasEnvironmentAsset = hasEnvironmentAsset;
     if (!hasEnvironmentAsset) {
       this.createFloorPlates();
       this.createEnergyTrenches();
@@ -95,6 +98,7 @@ export class SceneFactory {
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.hasEnvironmentAsset = false;
     this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
@@ -246,23 +250,6 @@ export class SceneFactory {
     if (!entity) {
       return false;
     }
-
-    // Keep kitbash dressing as separately-instanced runtime modules so transforms stay explicit and debuggable.
-    this._instantiateAsset('gs_catwalk_a', 'OuterCatwalk_A', [-10.8, 0.24, 6.2], this.sceneGroups.structural, [1.18, 1.18, 1.18], [0, -26, 0]);
-    this._instantiateAsset('gs_catwalk_a', 'OuterCatwalk_B', [-8.0, 0.24, 7.1], this.sceneGroups.structural, [1.18, 1.18, 1.18], [0, -26, 0]);
-    this._instantiateAsset('gs_catwalk_a', 'BridgeCatwalk_A', [-1.8, 0.28, 4.1], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -34, 0]);
-    this._instantiateAsset('gs_catwalk_a', 'BridgeCatwalk_B', [1.0, 0.28, 1.9], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -34, 0]);
-    this._instantiateAsset('gs_catwalk_a', 'InnerCatwalk', [7.4, 0.24, -3.7], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -28, 0]);
-
-    this._instantiateAsset('gs_relay_housing_a', 'BreachRelay', [-12.6, 0.12, 10.6], this.sceneGroups.structural, [1.0, 1.0, 1.0], [0, 136, 0]);
-    this._instantiateAsset('gs_relay_housing_a', 'KillboxRelay', [0.6, 0.16, 5.0], this.sceneGroups.structural, [0.94, 0.94, 0.94], [0, -18, 0]);
-    this._instantiateAsset('gs_relay_housing_a', 'CoreRelay', [9.7, 0.14, -7.3], this.sceneGroups.structural, [1.0, 1.0, 1.0], [0, 88, 0]);
-
-    this._instantiateAsset('gs_pipe_bracket_a', 'NorthPipeBracket', [0.2, 0.05, 5.3], this.sceneGroups.structural, [1.15, 1.15, 1.15], [0, 0, 0]);
-    this._instantiateAsset('gs_pipe_bracket_a', 'SouthPipeBracket', [4.8, 0.05, -1.1], this.sceneGroups.structural, [1.15, 1.15, 1.15], [0, 92, 0]);
-
-    this._instantiateAsset('gs_dish_support_a', 'CoreDishSupport', [11.3, 0.12, -8.7], this.sceneGroups.structural, [1.02, 1.02, 1.02], [0, 132, 0]);
-    this._instantiateAsset('gs_dish_support_a', 'BreachDishSupport', [-13.4, 0.12, 4.9], this.sceneGroups.structural, [0.92, 0.92, 0.92], [0, -46, 0]);
 
     return true;
   }
@@ -471,9 +458,12 @@ export class SceneFactory {
   }
 
   createCamera() {
+    const useOrthographic = this.currentLevel.camera?.projection === 'orthographic';
     const camera = new pc.Entity('MainCamera');
     camera.addComponent('camera', {
       clearColor: this._toColor(this.currentLevel.theme.skyColor),
+      projection: useOrthographic ? pc.PROJECTION_ORTHOGRAPHIC : pc.PROJECTION_PERSPECTIVE,
+      orthoHeight: useOrthographic ? (this.currentLevel.camera?.orthoHeight || 10) : undefined,
       fov: this.currentLevel.camera?.fov || 48,
       near: 0.1,
       far: 120
@@ -710,14 +700,18 @@ export class SceneFactory {
     const waypoints = this.currentLevel.waypoints;
     const pathStyle = this.currentLevel.pathStyle;
     const theme = this.currentLevel.theme;
+    const useFlatPath = this.hasEnvironmentAsset;
     const pathMaterial = this._createMaterial(theme.pathColor, {
-      emissive: { r: 0.1, g: 0.12, b: 0.16 },
+      emissive: useFlatPath
+        ? { r: 0.12, g: 0.2, b: 0.24 }
+        : { r: 0.1, g: 0.12, b: 0.16 },
       specular: theme.neutralGlow,
-      shininess: 30
+      shininess: 30,
+      opacity: useFlatPath ? 0.72 : undefined
     });
     const edgeMaterial = this._createMaterial(theme.pathEdgeColor, {
       emissive: { r: theme.pathEdgeColor.r * 0.28, g: theme.pathEdgeColor.g * 0.28, b: theme.pathEdgeColor.b * 0.28 },
-      opacity: 0.6
+      opacity: useFlatPath ? 0.48 : 0.6
     });
 
     for (let i = 0; i < waypoints.length - 1; i++) {
@@ -728,48 +722,89 @@ export class SceneFactory {
       const length = Math.sqrt(dx * dx + dz * dz);
       const angle = Math.atan2(dx, dz);
 
-      const segment = this._createBox(
-        `PathSegment_${i}`,
-        {
-          x: (start.x + end.x) / 2,
-          y: pathStyle.height || 0.12,
-          z: (start.z + end.z) / 2
-        },
-        { x: pathStyle.width, y: 0.18, z: length + pathStyle.width * 0.15 },
-        pathMaterial,
-        this.sceneGroups.pathMarkers,
-        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
-      );
+      const segment = useFlatPath
+        ? this._createPlane(
+          `PathSegment_${i}`,
+          {
+            x: (start.x + end.x) / 2,
+            y: 0.04,
+            z: (start.z + end.z) / 2
+          },
+          { x: pathStyle.width * 0.52, y: 1, z: length + pathStyle.width * 0.12 },
+          pathMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 90, y: -angle * (180 / Math.PI), z: 0 }
+        )
+        : this._createBox(
+          `PathSegment_${i}`,
+          {
+            x: (start.x + end.x) / 2,
+            y: pathStyle.height || 0.12,
+            z: (start.z + end.z) / 2
+          },
+          { x: pathStyle.width, y: 0.18, z: length + pathStyle.width * 0.15 },
+          pathMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 0, y: -angle * (180 / Math.PI), z: 0 }
+        );
       this.pathMarkers.push(segment);
 
       const edgeOffset = pathStyle.width / 2 + 0.12;
-      const edgeScale = { x: pathStyle.edgeWidth, y: 0.16, z: length + pathStyle.width * 0.18 };
+      const edgeScale = useFlatPath
+        ? { x: pathStyle.edgeWidth * 0.8, y: 1, z: length + pathStyle.width * 0.16 }
+        : { x: pathStyle.edgeWidth, y: 0.16, z: length + pathStyle.width * 0.18 };
 
-      const leftEdge = this._createBox(
-        `PathEdgeL_${i}`,
-        {
-          x: (start.x + end.x) / 2 - Math.cos(angle) * edgeOffset,
-          y: 0.18,
-          z: (start.z + end.z) / 2 + Math.sin(angle) * edgeOffset
-        },
-        edgeScale,
-        edgeMaterial,
-        this.sceneGroups.pathMarkers,
-        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
-      );
+      const leftEdge = useFlatPath
+        ? this._createPlane(
+          `PathEdgeL_${i}`,
+          {
+            x: (start.x + end.x) / 2 - Math.cos(angle) * edgeOffset,
+            y: 0.055,
+            z: (start.z + end.z) / 2 + Math.sin(angle) * edgeOffset
+          },
+          edgeScale,
+          edgeMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 90, y: -angle * (180 / Math.PI), z: 0 }
+        )
+        : this._createBox(
+          `PathEdgeL_${i}`,
+          {
+            x: (start.x + end.x) / 2 - Math.cos(angle) * edgeOffset,
+            y: 0.18,
+            z: (start.z + end.z) / 2 + Math.sin(angle) * edgeOffset
+          },
+          edgeScale,
+          edgeMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 0, y: -angle * (180 / Math.PI), z: 0 }
+        );
 
-      const rightEdge = this._createBox(
-        `PathEdgeR_${i}`,
-        {
-          x: (start.x + end.x) / 2 + Math.cos(angle) * edgeOffset,
-          y: 0.18,
-          z: (start.z + end.z) / 2 - Math.sin(angle) * edgeOffset
-        },
-        edgeScale,
-        edgeMaterial,
-        this.sceneGroups.pathMarkers,
-        { x: 0, y: -angle * (180 / Math.PI), z: 0 }
-      );
+      const rightEdge = useFlatPath
+        ? this._createPlane(
+          `PathEdgeR_${i}`,
+          {
+            x: (start.x + end.x) / 2 + Math.cos(angle) * edgeOffset,
+            y: 0.055,
+            z: (start.z + end.z) / 2 - Math.sin(angle) * edgeOffset
+          },
+          edgeScale,
+          edgeMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 90, y: -angle * (180 / Math.PI), z: 0 }
+        )
+        : this._createBox(
+          `PathEdgeR_${i}`,
+          {
+            x: (start.x + end.x) / 2 + Math.cos(angle) * edgeOffset,
+            y: 0.18,
+            z: (start.z + end.z) / 2 - Math.sin(angle) * edgeOffset
+          },
+          edgeScale,
+          edgeMaterial,
+          this.sceneGroups.pathMarkers,
+          { x: 0, y: -angle * (180 / Math.PI), z: 0 }
+        );
 
       this.pathMarkers.push(leftEdge, rightEdge);
     }
@@ -779,8 +814,8 @@ export class SceneFactory {
 
       const marker = this._createCylinder(
         `Waypoint_${index}`,
-        { x: waypoint.x, y: 0.22, z: waypoint.z },
-        { x: pathStyle.waypointRadius, y: 0.18, z: pathStyle.waypointRadius },
+        { x: waypoint.x, y: useFlatPath ? 0.08 : 0.22, z: waypoint.z },
+        { x: pathStyle.waypointRadius, y: useFlatPath ? 0.05 : 0.18, z: pathStyle.waypointRadius },
         this._createMaterial(theme.neutralGlow, {
           emissive: { r: 0.28, g: 0.24, b: 0.16 },
           shininess: 80

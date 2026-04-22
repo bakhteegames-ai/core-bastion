@@ -315,6 +315,7 @@ export class GameBootstrap {
     // Show tower panel and abilities bar during build phase
     this.towerPanelController.show();
     this.abilityBarController.show();
+    this.buildManager?.setRangeIndicatorsVisible(true);
     
     console.log(`[GameBootstrap] BUILD_PHASE started (${buildPhaseDuration}s)`);
   }
@@ -328,6 +329,7 @@ export class GameBootstrap {
     
     // Hide tower panel during wave, keep abilities visible
     this.towerPanelController.hide();
+    this.buildManager?.setRangeIndicatorsVisible(false);
     
     this.waveManager.startNextWave();
     console.log('[GameBootstrap] WAVE_ACTIVE started');

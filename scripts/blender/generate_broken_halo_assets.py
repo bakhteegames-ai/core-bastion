@@ -1,11 +1,14 @@
 import math
 import os
+import re
 import sys
 
 import bpy
+import mathutils
 
 
 DEG = math.pi / 180.0
+GENERIC_CUBE_RE = re.compile(r"Cube(\.\d+)?$")
 
 
 def parse_args():
@@ -184,6 +187,67 @@ def import_gltf(filepath, name, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1
   return parent
 
 
+def import_gltf_clean(filepath, name, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1)):
+  if not os.path.exists(filepath):
+    return None
+
+  existing = {obj.name for obj in bpy.data.objects}
+  bpy.ops.import_scene.gltf(filepath=filepath, merge_vertices=True)
+  imported = [obj for obj in bpy.data.objects if obj.name not in existing]
+  if not imported:
+    return None
+
+  for obj in list(imported):
+    if obj.type == "MESH" and GENERIC_CUBE_RE.fullmatch(obj.name):
+      bpy.data.objects.remove(obj, do_unlink=True)
+
+  imported = [obj for obj in imported if obj.name in bpy.data.objects]
+  if not imported:
+    return None
+
+  parent = bpy.data.objects.new(name, None)
+  bpy.context.scene.collection.objects.link(parent)
+
+  roots = [obj for obj in imported if obj.parent is None]
+  for root in roots:
+    root.parent = parent
+
+  recenter_import(parent)
+
+  parent.location = location
+  parent.rotation_euler = radians(rotation)
+  parent.scale = scale
+  return parent
+
+
+def recenter_import(parent):
+  meshes = [obj for obj in parent.children_recursive if obj.type == "MESH"]
+  if not meshes:
+    return
+
+  mins = [float("inf"), float("inf"), float("inf")]
+  maxs = [float("-inf"), float("-inf"), float("-inf")]
+  for mesh in meshes:
+    matrix = mesh.matrix_world
+    for corner in mesh.bound_box:
+      vertex = matrix @ mathutils.Vector(corner)
+      mins[0] = min(mins[0], vertex.x)
+      mins[1] = min(mins[1], vertex.y)
+      mins[2] = min(mins[2], vertex.z)
+      maxs[0] = max(maxs[0], vertex.x)
+      maxs[1] = max(maxs[1], vertex.y)
+      maxs[2] = max(maxs[2], vertex.z)
+
+  offset = mathutils.Vector((
+    -((mins[0] + maxs[0]) * 0.5),
+    -mins[1],
+    -((mins[2] + maxs[2]) * 0.5)
+  ))
+
+  for child in parent.children:
+    child.location += offset
+
+
 def export_selected(filepath):
   bpy.ops.object.select_all(action="DESELECT")
   exportables = [obj for obj in bpy.context.scene.objects if obj.type in {"MESH", "EMPTY"}]
@@ -222,7 +286,7 @@ def build_environment(out_dir, kitbash_dir):
   deck_blocks = [
     ("OuterDeck", (-9.6, -0.3, 7.3), (6.1, 0.38, 4.2), (0, 0, 0), "hull"),
     ("BreachSpur", (-6.3, -0.15, 10.4), (2.4, 0.2, 1.0), (0, 0, -4), "plating"),
-    ("BridgeDeck", (1.1, -0.12, 1.6), (4.8, 0.22, 3.1), (0, 0, 0), "plating"),
+    ("BridgeDeck", (1.1, -0.24, 1.6), (3.9, 0.12, 2.55), (0, 0, 0), "plating"),
     ("InnerDeck", (8.8, -0.25, -3.6), (5.2, 0.34, 4.4), (0, 0, 0), "hull"),
     ("InnerSpur", (10.9, -0.16, -7.5), (1.7, 0.2, 2.2), (0, 16, 0), "plating")
   ]
@@ -233,20 +297,20 @@ def build_environment(out_dir, kitbash_dir):
   plane("UnderglowSouth", (4.6, -1.05, -0.9), 3.7, 2.15, mats["cyan_soft"], (90, 90, 0))
 
   trench_blocks = [
-    ("NorthTrench", (0.4, -1.55, 4.6), (4.9, 1.45, 1.55), (0, 0, 0)),
-    ("SouthTrench", (4.6, -1.6, -1.0), (3.3, 1.55, 2.25), (0, 0, 0))
+    ("NorthTrench", (0.4, -1.9, 4.6), (4.5, 0.92, 1.35), (0, 0, 0)),
+    ("SouthTrench", (4.6, -1.95, -1.0), (2.9, 0.95, 2.0), (0, 0, 0))
   ]
   for name, loc, dims, rot in trench_blocks:
     beveled_cube(name, loc, dims, mats["dark"], rot, bevel=0.02)
 
   walls = [
-    ("WestWallNorth", (-15.0, 1.55, 10.9), (0.55, 1.65, 2.25), (0, 0, 0)),
-    ("WestWallSouth", (-15.0, 1.55, 2.4), (0.55, 1.65, 4.2), (0, 0, 0)),
-    ("NorthWall", (-8.2, 1.55, 12.5), (6.4, 1.55, 0.5), (0, 0, 0)),
+    ("WestWallNorth", (-15.0, 0.9, 10.9), (0.45, 0.85, 1.45), (0, 0, 0)),
+    ("WestWallSouth", (-15.0, 0.75, 2.4), (0.42, 0.7, 2.2), (0, 0, 0)),
+    ("NorthWall", (-8.2, 0.92, 12.5), (5.2, 0.82, 0.42), (0, 0, 0)),
     ("SouthWall", (2.0, 1.45, -11.4), (12.1, 1.45, 0.45), (0, 0, 0)),
     ("EastWall", (13.8, 1.55, -4.2), (0.45, 1.55, 5.1), (0, 0, 0)),
-    ("BridgeShieldNorth", (-2.4, 1.35, 6.0), (1.3, 1.4, 0.35), (0, 0, 0)),
-    ("BridgeShieldSouth", (6.5, 1.35, -3.8), (1.3, 1.4, 0.35), (0, 0, 0))
+    ("BridgeShieldNorth", (-2.4, 0.92, 6.0), (1.0, 0.95, 0.28), (0, 0, 0)),
+    ("BridgeShieldSouth", (6.5, 0.92, -3.8), (1.0, 0.95, 0.28), (0, 0, 0))
   ]
   for name, loc, dims, rot in walls:
     beveled_cube(name, loc, dims, mats["plating"], rot, bevel=0.04)
@@ -261,13 +325,7 @@ def build_environment(out_dir, kitbash_dir):
   for name, loc, dims, rot in skyline:
     beveled_cube(name, loc, dims, mats["trim"], rot, bevel=0.03)
 
-  bridge_shell = [
-    ("BridgeMain", (1.1, 0.42, 1.4), (3.9, 0.14, 1.2), (0, -26, 0)),
-    ("BridgeRailL", (0.0, 0.76, 3.25), (3.8, 0.08, 0.12), (0, -34, 0)),
-    ("BridgeRailR", (2.2, 0.76, -0.5), (3.9, 0.08, 0.12), (0, -34, 0)),
-    ("BridgeBraceL", (-1.0, -0.25, 2.9), (0.09, 1.2, 0.09), (0, 0, 28)),
-    ("BridgeBraceR", (3.4, -0.25, -0.2), (0.09, 1.2, 0.09), (0, 0, -28))
-  ]
+  bridge_shell = []
   for name, loc, dims, rot in bridge_shell:
     beveled_cube(name, loc, dims, mats["trim"], rot, bevel=0.025)
 
@@ -304,6 +362,28 @@ def build_environment(out_dir, kitbash_dir):
   ]):
     x, y, z, sx, sy, sz, rot = spec
     beveled_cube(f"BreachDebris_{idx}", (x, y, z), (sx, sy, sz), mats["orange"], rot, bevel=0.015)
+
+  import_gltf_clean(
+    os.path.join(kitbash_dir, "gs_catwalk_a.glb"),
+    "OuterCatwalk_A",
+    location=(-10.6, 0.2, 6.0),
+    rotation=(0, -26, 0),
+    scale=(1.08, 1.08, 1.08)
+  )
+  import_gltf_clean(
+    os.path.join(kitbash_dir, "gs_catwalk_a.glb"),
+    "OuterCatwalk_B",
+    location=(-7.9, 0.2, 7.0),
+    rotation=(0, -26, 0),
+    scale=(1.08, 1.08, 1.08)
+  )
+  import_gltf_clean(
+    os.path.join(kitbash_dir, "gs_catwalk_a.glb"),
+    "InnerCatwalk",
+    location=(7.5, 0.2, -3.8),
+    rotation=(0, -28, 0),
+    scale=(0.94, 0.94, 0.94)
+  )
 
   export_selected(os.path.join(out_dir, "broken_halo_env.glb"))
 
