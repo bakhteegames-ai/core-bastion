@@ -25,8 +25,8 @@ const BROKEN_HALO = {
     neutralGlow: { r: 0.9, g: 0.84, b: 0.64 }
   },
   battlefield: {
-    width: 34,
-    depth: 28,
+    width: 30,
+    depth: 26,
     pathWidth: 2.35,
     pathHeight: 0.16,
     padRadius: 1.7,
@@ -34,10 +34,10 @@ const BROKEN_HALO = {
     wallHeight: 3.2
   },
   camera: {
-    x: -4.5,
-    y: 15.5,
-    z: 20.5,
-    target: { x: 2.8, y: 0.65, z: 1.2 }
+    x: -1.4,
+    y: 11.8,
+    z: 17.1,
+    target: { x: 3.4, y: 0.95, z: -0.2 }
   },
   spawn: { x: -14, z: 8 },
   base: { x: 11, z: -5 },
@@ -64,8 +64,9 @@ const BROKEN_HALO = {
   ],
   pathStyle: {
     width: 2.35,
-    edgeWidth: 0.16,
-    waypointRadius: 0.5
+    edgeWidth: 0.12,
+    waypointRadius: 0.38,
+    height: 0.08
   },
   setPieces: {
     floorPlates: [

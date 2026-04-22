@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "generate:assets": "node ./scripts/generate-broken-halo-assets.mjs",
+    "generate:assets": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-broken-halo-assets.ps1",
+    "generate:assets:legacy": "node ./scripts/generate-broken-halo-assets.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
