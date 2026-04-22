@@ -95,6 +95,7 @@ export class GameBootstrap {
     this._buildPhaseBonus = 0;
     this._shardsEarnedThisRun = 0;
     this._enemiesKilledThisRun = 0;
+    this._coreAlertCooldown = 0;
   }
 
   async init() {
@@ -199,9 +200,9 @@ export class GameBootstrap {
     this.vfxController = new VFXController(this.app);
 
     // Set up runtime callbacks after services exist
-    this.projectileController.setOnHitCallback((position) => {
+    this.projectileController.setOnHitCallback((position, target, options = {}) => {
       this.audioService.playEnemyHit();
-      this.vfxController?.createHitEffect(position);
+      this.vfxController?.createHitEffect(position, options);
     });
     this.towerController.setOnFireCallback(() => {
       this.audioService.playTowerFire();
@@ -497,6 +498,22 @@ export class GameBootstrap {
 
     enemy._managedBySpawner = managedBySpawner;
     this.enemies.push(enemy);
+
+    const spawnMarkerPos = this.sceneFactory?.spawnMarker?.getPosition?.();
+    const fallbackSpawn = this._currentLevel?.spawn;
+    const spawnPosition = spawnMarkerPos || fallbackSpawn;
+    if (spawnPosition && this.vfxController) {
+      this.vfxController.createSpawnEffect(
+        {
+          x: spawnPosition.x,
+          y: (spawnPosition.y ?? 0) + 0.2,
+          z: spawnPosition.z
+        },
+        {
+          color: this._currentLevel?.theme?.spawnColor
+        }
+      );
+    }
   }
 
   _removeEnemyReference(enemy) {
@@ -555,6 +572,7 @@ export class GameBootstrap {
   _onWaveStart(waveNumber) {
     this.hudController.setWave(waveNumber);
     this.audioService.playWaveStart();
+    this._coreAlertCooldown = 0;
   }
 
   async _onWaveComplete(waveNumber) {
@@ -576,6 +594,59 @@ export class GameBootstrap {
 
     this.runModifier?.applyToWaveCompletion(waveNumber, this);
     this._startBuildPhase();
+  }
+
+  _getCoreAlertOrigin() {
+    const corePocket = this.sceneFactory?.zoneAnchors?.CorePocket?.getPosition?.();
+    if (corePocket) {
+      return corePocket;
+    }
+
+    return this.sceneFactory?.baseMarker?.getPosition?.() || this._currentLevel?.base || null;
+  }
+
+  _updateCombatAlerts(dt) {
+    this._coreAlertCooldown = Math.max(0, this._coreAlertCooldown - dt);
+    if (this._coreAlertCooldown > 0 || !this.vfxController) {
+      return;
+    }
+
+    const alertOrigin = this._getCoreAlertOrigin();
+    if (!alertOrigin) {
+      return;
+    }
+
+    const hasCoreThreat = this.enemies.some((enemy) => {
+      if (!enemy?.isActive) {
+        return false;
+      }
+
+      const enemyPos = enemy.position;
+      if (!enemyPos) {
+        return false;
+      }
+
+      const dx = enemyPos.x - alertOrigin.x;
+      const dz = enemyPos.z - alertOrigin.z;
+      return dx * dx + dz * dz <= 20.25;
+    });
+
+    if (!hasCoreThreat) {
+      return;
+    }
+
+    const basePos = this.sceneFactory?.baseMarker?.getPosition?.() || alertOrigin;
+    this.vfxController.createCoreAlertEffect(
+      {
+        x: basePos.x,
+        y: (basePos.y ?? 0) + 0.25,
+        z: basePos.z
+      },
+      {
+        color: this._currentLevel?.theme?.coreColor
+      }
+    );
+    this._coreAlertCooldown = 0.7;
   }
 
   _awardDefeatShards() {
@@ -645,6 +716,7 @@ export class GameBootstrap {
           }
         }
 
+      this._updateCombatAlerts(dt);
       this.towerController.update(this.enemies, dt);
       this.projectileController.update(dt);
       this.vfxController?.update(dt);
@@ -682,6 +754,7 @@ export class GameBootstrap {
     this._enemiesKilledThisRun = 0;
     this._shardsEarnedThisRun = 0;
     this._buildPhaseBonus = 0;
+    this._coreAlertCooldown = 0;
     this.baseHealth.reset();
     this.economyService.reset(this._getStartingGold());
     this.runModifier.applyToRun(this);
@@ -713,6 +786,7 @@ export class GameBootstrap {
 
   _loadLevel(level) {
     this._currentLevel = level;
+    this._coreAlertCooldown = 0;
 
     if (level.waveModifiers) {
       this._levelModifiers = level.waveModifiers;
@@ -854,6 +928,7 @@ export class GameBootstrap {
     this.baseHealth.reset();
     this.economyService.reset(this._getStartingGold());
     this._buildPhaseBonus = 0;
+    this._coreAlertCooldown = 0;
 
     this.stateMachine.transition(GameState.READY);
     this._continueUsed = false;

@@ -23,9 +23,15 @@ export class EnemyAgent {
     this.bodyEntity = null;
     this.coreEntity = null;
     this.shieldEntity = null;
+    this.hitFlashEntity = null;
+    this.spawnPulseEntity = null;
     this._bodyBasePosition = null;
     this._bodyBaseScale = null;
     this._coreBaseScale = null;
+    this._hitFlashTime = 0;
+    this._hitFlashDuration = 0.16;
+    this._spawnPulseTime = 0;
+    this._spawnPulseDuration = 0.32;
     this.init(options);
   }
 
@@ -67,6 +73,8 @@ export class EnemyAgent {
     this._currentWaypointIndex = 0;
     this._isActive = true;
     this._animTime = Math.random() * Math.PI * 2;
+    this._hitFlashTime = 0;
+    this._spawnPulseTime = 0;
 
     this._onReachEndpointCallback = null;
     this._onDeathCallback = null;
@@ -89,6 +97,8 @@ export class EnemyAgent {
     this.entity.enabled = true;
     this.entity.setLocalPosition(this._waypoints[0].x, spawnY, this._waypoints[0].z);
     this.entity.setLocalScale(this._scale, this._scale, this._scale);
+    this._spawnPulseTime = this._spawnPulseDuration;
+    this._hitFlashTime = 0;
     this._resetVisualState();
   }
 
@@ -133,6 +143,23 @@ export class EnemyAgent {
     }
 
     this._setBodyOpacity(this._special === 'stealth' && !this._isVisible ? 0.3 : 1.0);
+    if (this.hitFlashEntity) {
+      this.hitFlashEntity.setLocalScale(1.2, 1.2, 1.2);
+    }
+    if (this.spawnPulseEntity) {
+      this.spawnPulseEntity.setLocalScale(0.75, 0.75, 0.12);
+    }
+    this._setFeedbackOpacity(this.hitFlashEntity, 0);
+    this._setFeedbackOpacity(this.spawnPulseEntity, 0);
+  }
+
+  _setFeedbackOpacity(entity, opacity) {
+    if (!entity?.render?.material) {
+      return;
+    }
+
+    entity.render.material.opacity = opacity;
+    entity.enabled = opacity > 0.001;
   }
 
   _createEntity() {
@@ -147,7 +174,8 @@ export class EnemyAgent {
         this.entity.addChild(modelEntity);
         this.modelEntity = modelEntity;
         this.bodyEntity = modelEntity;
-        
+
+        this._createCombatFeedbackVisuals();
         this.app.root.addChild(this.entity);
         this._cacheBaseTransforms();
         this._resetVisualState();
@@ -158,10 +186,50 @@ export class EnemyAgent {
 
     // Fallback to procedural model
     this._createProceduralModel();
+    this._createCombatFeedbackVisuals();
     this.app.root.addChild(this.entity);
     this._cacheBaseTransforms();
     this._resetVisualState();
     console.log(`[EnemyAgent] Spawned ${this._typeId} (${this._nameRu}) with procedural model at (${this._waypoints[0].x}, ${this._waypoints[0].z})`);
+  }
+
+  _createCombatFeedbackVisuals() {
+    const hitFlash = new pc.Entity('EnemyHitFlash');
+    hitFlash.addComponent('render', { type: 'sphere' });
+    hitFlash.setLocalPosition(0, this._canFly ? 0.2 : 0.78, 0);
+    hitFlash.setLocalScale(1.2, 1.2, 1.2);
+
+    const hitMaterial = new pc.StandardMaterial();
+    hitMaterial.diffuse = new pc.Color(1.0, 0.74, 0.3);
+    hitMaterial.emissive = new pc.Color(1.3, 0.72, 0.28);
+    hitMaterial.opacity = 0;
+    hitMaterial.blendType = pc.BLEND_NORMAL;
+    hitMaterial.update();
+    hitFlash.render.material = hitMaterial;
+    hitFlash.enabled = false;
+    this.entity.addChild(hitFlash);
+    this.hitFlashEntity = hitFlash;
+
+    const spawnPulse = new pc.Entity('EnemySpawnPulse');
+    spawnPulse.addComponent('render', { type: 'torus' });
+    spawnPulse.setLocalPosition(0, this._canFly ? 0.15 : 0.12, 0);
+    spawnPulse.setLocalScale(0.75, 0.75, 0.12);
+    spawnPulse.setLocalEulerAngles(90, 0, 0);
+
+    const spawnMaterial = new pc.StandardMaterial();
+    spawnMaterial.diffuse = new pc.Color(this._color.r, this._color.g, this._color.b);
+    spawnMaterial.emissive = new pc.Color(
+      this._color.r * 0.75,
+      this._color.g * 0.75,
+      this._color.b * 0.75
+    );
+    spawnMaterial.opacity = 0;
+    spawnMaterial.blendType = pc.BLEND_NORMAL;
+    spawnMaterial.update();
+    spawnPulse.render.material = spawnMaterial;
+    spawnPulse.enabled = false;
+    this.entity.addChild(spawnPulse);
+    this.spawnPulseEntity = spawnPulse;
   }
 
   _createProceduralModel() {
@@ -848,6 +916,51 @@ export class EnemyAgent {
         }
       }
     }
+
+    this._updateCombatFeedback(dt);
+  }
+
+  _updateCombatFeedback(dt) {
+    if (this.hitFlashEntity?.render?.material) {
+      if (this._hitFlashTime > 0) {
+        this._hitFlashTime = Math.max(0, this._hitFlashTime - dt);
+        const progress = 1 - this._hitFlashTime / this._hitFlashDuration;
+        const opacity = (1 - progress) * 0.7;
+        const scale = 1.1 + progress * 0.35;
+        this.hitFlashEntity.setLocalScale(scale, scale, scale);
+        this._setFeedbackOpacity(this.hitFlashEntity, opacity);
+      } else {
+        this.hitFlashEntity.setLocalScale(1.2, 1.2, 1.2);
+        this._setFeedbackOpacity(this.hitFlashEntity, 0);
+      }
+    }
+
+    if (this.spawnPulseEntity?.render?.material) {
+      if (this._spawnPulseTime > 0) {
+        this._spawnPulseTime = Math.max(0, this._spawnPulseTime - dt);
+        const progress = 1 - this._spawnPulseTime / this._spawnPulseDuration;
+        const scale = 0.7 + progress * 0.95;
+        const opacity = (1 - progress) * 0.55;
+        this.spawnPulseEntity.setLocalScale(scale, scale, 0.12);
+        this._setFeedbackOpacity(this.spawnPulseEntity, opacity);
+      } else {
+        this.spawnPulseEntity.setLocalScale(0.75, 0.75, 0.12);
+        this._setFeedbackOpacity(this.spawnPulseEntity, 0);
+      }
+    }
+  }
+
+  _triggerHitFlash(actualDamage) {
+    this._hitFlashTime = this._hitFlashDuration;
+
+    if (this.coreEntity && this._coreBaseScale) {
+      const damageRatio = Math.min(0.35, Math.max(0.08, actualDamage / Math.max(1, this._maxHP)));
+      this.coreEntity.setLocalScale(
+        this._coreBaseScale.x + damageRatio,
+        this._coreBaseScale.y + damageRatio,
+        this._coreBaseScale.z + damageRatio
+      );
+    }
   }
 
   /**
@@ -891,6 +1004,7 @@ export class EnemyAgent {
 
     this._hp -= actualDamage;
     console.log(`[EnemyAgent] ${this._typeId} took ${actualDamage.toFixed(1)} damage (${amount} - ${this._armor} armor), HP: ${this._hp.toFixed(1)}/${this._maxHP}`);
+    this._triggerHitFlash(actualDamage);
 
     // Check boss abilities
     if (this._special === 'boss' && this._abilities.length > 0) {
@@ -1085,6 +1199,8 @@ export class EnemyAgent {
     this._lastSpawnTime = 0;
     this._isDashing = false;
     this._dashCooldown = 0;
+    this._hitFlashTime = 0;
+    this._spawnPulseTime = 0;
     this._triggeredAbilities?.clear?.();
     this._onReachEndpointCallback = null;
     this._onDeathCallback = null;
@@ -1110,6 +1226,8 @@ export class EnemyAgent {
       this.entity.destroy();
       this.entity = null;
     }
+    this.hitFlashEntity = null;
+    this.spawnPulseEntity = null;
     this._isActive = false;
   }
 }
