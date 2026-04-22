@@ -24,7 +24,12 @@ export class AssetLoader {
         { name: 'broken_halo_reactor', url: '/assets/models/broken_halo_reactor.glb', type: 'container' },
         { name: 'broken_halo_pad', url: '/assets/models/broken_halo_pad.glb', type: 'container' },
         { name: 'broken_halo_beacon', url: '/assets/models/broken_halo_beacon.glb', type: 'container' },
-        { name: 'broken_halo_portal', url: '/assets/models/broken_halo_portal.glb', type: 'container' }
+        { name: 'broken_halo_portal', url: '/assets/models/broken_halo_portal.glb', type: 'container' },
+        { name: 'grim_shade_rooftop_kit', url: '/assets/models/kitbash/grim_shade_rooftop_kit.glb', type: 'container' },
+        { name: 'gs_catwalk_a', url: '/assets/models/kitbash/gs_catwalk_a.glb', type: 'container' },
+        { name: 'gs_dish_support_a', url: '/assets/models/kitbash/gs_dish_support_a.glb', type: 'container' },
+        { name: 'gs_pipe_bracket_a', url: '/assets/models/kitbash/gs_pipe_bracket_a.glb', type: 'container' },
+        { name: 'gs_relay_housing_a', url: '/assets/models/kitbash/gs_relay_housing_a.glb', type: 'container' }
       ];
 
       let loadedCount = 0;

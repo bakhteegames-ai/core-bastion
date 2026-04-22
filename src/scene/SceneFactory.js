@@ -220,19 +220,66 @@ export class SceneFactory {
 
   createEnvironmentAsset() {
     const environmentAsset = this.currentLevel.sceneAssembly?.environmentAsset;
-    if (!environmentAsset) {
-      return false;
+    const placedAssets = [];
+    const placeAsset = (
+      assetName,
+      entityName,
+      position,
+      scale = [1, 1, 1],
+      rotation = [0, 0, 0],
+      parentEntity = this.sceneGroups.structural
+    ) => {
+      const entity = this._instantiateAsset(assetName, entityName, position, parentEntity, scale, rotation);
+      if (entity) {
+        placedAssets.push(entity);
+      }
+      return entity;
+    };
+
+    if (environmentAsset) {
+      const environmentPosition = environmentAsset.position || { x: 0, y: 0, z: 0 };
+      placeAsset(
+        environmentAsset.name,
+        environmentAsset.entityName,
+        [environmentPosition.x, environmentPosition.y, environmentPosition.z]
+      );
+    } else {
+      placeAsset('broken_halo_env', 'BrokenHaloEnvironment', [0, 0, 0]);
     }
 
-    const environmentPosition = environmentAsset.position || { x: 0, y: 0, z: 0 };
-    const environment = this._instantiateAsset(
-      environmentAsset.name,
-      environmentAsset.entityName,
-      [environmentPosition.x, environmentPosition.y, environmentPosition.z],
-      this.sceneGroups.structural
-    );
+    // Layer in authored sci-fi kitbash modules so the battlefield stops reading like a test board.
+    placeAsset('grim_shade_rooftop_kit', 'OuterBreachSuperstructure', [-3.8, 0.08, 5.4], [0.74, 0.74, 0.74], [0, -26, 0]);
+    placeAsset('grim_shade_rooftop_kit', 'InnerHaloBulkhead', [8.1, 0.12, -6.2], [0.42, 0.42, 0.42], [0, 88, 0]);
 
-    if (!environment) {
+    [
+      { name: 'OuterCatwalk_A', pos: [-10.9, 0.24, 6.1], scale: [1.18, 1.18, 1.18], rot: [0, -26, 0] },
+      { name: 'OuterCatwalk_B', pos: [-8.1, 0.24, 7.1], scale: [1.18, 1.18, 1.18], rot: [0, -26, 0] },
+      { name: 'BridgeCatwalk_A', pos: [-1.6, 0.28, 3.9], scale: [1.05, 1.05, 1.05], rot: [0, -34, 0] },
+      { name: 'BridgeCatwalk_B', pos: [1.1, 0.28, 1.8], scale: [1.05, 1.05, 1.05], rot: [0, -34, 0] },
+      { name: 'InnerCatwalk', pos: [7.4, 0.24, -3.6], scale: [1.1, 1.1, 1.1], rot: [0, -28, 0] }
+    ].forEach((entry) => {
+      placeAsset('gs_catwalk_a', entry.name, entry.pos, entry.scale, entry.rot);
+    });
+
+    [
+      { name: 'BreachRelay', pos: [-12.6, 0.12, 10.7], scale: [1.0, 1.0, 1.0], rot: [0, 136, 0] },
+      { name: 'KillboxRelay', pos: [0.4, 0.16, 5.0], scale: [0.92, 0.92, 0.92], rot: [0, -18, 0] },
+      { name: 'CoreRelay', pos: [9.7, 0.14, -7.3], scale: [1.0, 1.0, 1.0], rot: [0, 88, 0] }
+    ].forEach((entry) => {
+      placeAsset('gs_relay_housing_a', entry.name, entry.pos, entry.scale, entry.rot);
+    });
+
+    [
+      { name: 'NorthPipeBracket', pos: [0.2, 0.05, 5.2], scale: [1.15, 1.15, 1.15], rot: [0, 0, 0] },
+      { name: 'SouthPipeBracket', pos: [4.9, 0.05, -1.1], scale: [1.15, 1.15, 1.15], rot: [0, 92, 0] }
+    ].forEach((entry) => {
+      placeAsset('gs_pipe_bracket_a', entry.name, entry.pos, entry.scale, entry.rot);
+    });
+
+    placeAsset('gs_dish_support_a', 'CoreDishSupport', [11.2, 0.12, -8.8], [1.05, 1.05, 1.05], [0, 132, 0]);
+    placeAsset('gs_dish_support_a', 'BreachDishSupport', [-13.5, 0.12, 4.8], [0.92, 0.92, 0.92], [0, -46, 0]);
+
+    if (!placedAssets.length) {
       return false;
     }
 
