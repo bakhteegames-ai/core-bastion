@@ -95,6 +95,19 @@ const BROKEN_HALO = {
       { name: 'CoreBeaconB', x: 12.2, y: 1.8, z: -2.0, color: 'core' }
     ]
   },
+  sceneAssembly: {
+    environmentAsset: {
+      name: 'broken_halo_env',
+      entityName: 'BrokenHaloEnvironment',
+      position: { x: 0, y: 0, z: 0 }
+    },
+    zoneAnchors: [
+      { name: 'BreachApron', position: { x: -11.8, y: 0, z: 7.5 } },
+      { name: 'CrossfireBridge', position: { x: 1.6, y: 0, z: 1.5 } },
+      { name: 'InnerRing', position: { x: 9.5, y: 0, z: -4.5 } },
+      { name: 'CorePocket', position: { x: 11, y: 0, z: -5 } }
+    ]
+  },
   pacing: {
     startingGold: 220,
     buildPhaseDuration: 8.0
@@ -128,6 +141,7 @@ function createScaffoldLevel(id, name, description, overrides = {}) {
     buildSlots: overrides.buildSlots || BROKEN_HALO.buildSlots,
     pathStyle: { ...BROKEN_HALO.pathStyle, ...(overrides.pathStyle || {}) },
     setPieces: overrides.setPieces || BROKEN_HALO.setPieces,
+    sceneAssembly: overrides.sceneAssembly ?? null,
     pacing: { ...BROKEN_HALO.pacing, ...(overrides.pacing || {}) },
     wavePlan: overrides.wavePlan || {},
     waveModifiers: { ...BROKEN_HALO.waveModifiers, ...(overrides.waveModifiers || {}) }
