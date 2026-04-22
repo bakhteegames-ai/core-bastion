@@ -243,7 +243,28 @@ export class SceneFactory {
       [environmentRotation.x, environmentRotation.y, environmentRotation.z]
     );
 
-    return Boolean(entity);
+    if (!entity) {
+      return false;
+    }
+
+    // Keep kitbash dressing as separately-instanced runtime modules so transforms stay explicit and debuggable.
+    this._instantiateAsset('gs_catwalk_a', 'OuterCatwalk_A', [-10.8, 0.24, 6.2], this.sceneGroups.structural, [1.18, 1.18, 1.18], [0, -26, 0]);
+    this._instantiateAsset('gs_catwalk_a', 'OuterCatwalk_B', [-8.0, 0.24, 7.1], this.sceneGroups.structural, [1.18, 1.18, 1.18], [0, -26, 0]);
+    this._instantiateAsset('gs_catwalk_a', 'BridgeCatwalk_A', [-1.8, 0.28, 4.1], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -34, 0]);
+    this._instantiateAsset('gs_catwalk_a', 'BridgeCatwalk_B', [1.0, 0.28, 1.9], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -34, 0]);
+    this._instantiateAsset('gs_catwalk_a', 'InnerCatwalk', [7.4, 0.24, -3.7], this.sceneGroups.structural, [1.08, 1.08, 1.08], [0, -28, 0]);
+
+    this._instantiateAsset('gs_relay_housing_a', 'BreachRelay', [-12.6, 0.12, 10.6], this.sceneGroups.structural, [1.0, 1.0, 1.0], [0, 136, 0]);
+    this._instantiateAsset('gs_relay_housing_a', 'KillboxRelay', [0.6, 0.16, 5.0], this.sceneGroups.structural, [0.94, 0.94, 0.94], [0, -18, 0]);
+    this._instantiateAsset('gs_relay_housing_a', 'CoreRelay', [9.7, 0.14, -7.3], this.sceneGroups.structural, [1.0, 1.0, 1.0], [0, 88, 0]);
+
+    this._instantiateAsset('gs_pipe_bracket_a', 'NorthPipeBracket', [0.2, 0.05, 5.3], this.sceneGroups.structural, [1.15, 1.15, 1.15], [0, 0, 0]);
+    this._instantiateAsset('gs_pipe_bracket_a', 'SouthPipeBracket', [4.8, 0.05, -1.1], this.sceneGroups.structural, [1.15, 1.15, 1.15], [0, 92, 0]);
+
+    this._instantiateAsset('gs_dish_support_a', 'CoreDishSupport', [11.3, 0.12, -8.7], this.sceneGroups.structural, [1.02, 1.02, 1.02], [0, 132, 0]);
+    this._instantiateAsset('gs_dish_support_a', 'BreachDishSupport', [-13.4, 0.12, 4.9], this.sceneGroups.structural, [0.92, 0.92, 0.92], [0, -46, 0]);
+
+    return true;
   }
 
   createFloorPlates() {

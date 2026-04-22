@@ -305,25 +305,6 @@ def build_environment(out_dir, kitbash_dir):
     x, y, z, sx, sy, sz, rot = spec
     beveled_cube(f"BreachDebris_{idx}", (x, y, z), (sx, sy, sz), mats["orange"], rot, bevel=0.015)
 
-  kit_specs = [
-    ("grim_shade_rooftop_kit.glb", "OuterBreachSuperstructure", (-3.8, 0.08, 5.4), (0, -26, 0), (0.76, 0.76, 0.76)),
-    ("grim_shade_rooftop_kit.glb", "InnerHaloBulkhead", (8.0, 0.12, -6.1), (0, 88, 0), (0.44, 0.44, 0.44)),
-    ("gs_catwalk_a.glb", "OuterCatwalk_A", (-10.8, 0.24, 6.2), (0, -26, 0), (1.18, 1.18, 1.18)),
-    ("gs_catwalk_a.glb", "OuterCatwalk_B", (-8.0, 0.24, 7.1), (0, -26, 0), (1.18, 1.18, 1.18)),
-    ("gs_catwalk_a.glb", "BridgeCatwalk_A", (-1.8, 0.28, 4.1), (0, -34, 0), (1.08, 1.08, 1.08)),
-    ("gs_catwalk_a.glb", "BridgeCatwalk_B", (1.0, 0.28, 1.9), (0, -34, 0), (1.08, 1.08, 1.08)),
-    ("gs_catwalk_a.glb", "InnerCatwalk", (7.4, 0.24, -3.7), (0, -28, 0), (1.08, 1.08, 1.08)),
-    ("gs_relay_housing_a.glb", "BreachRelay", (-12.6, 0.12, 10.6), (0, 136, 0), (1.0, 1.0, 1.0)),
-    ("gs_relay_housing_a.glb", "KillboxRelay", (0.6, 0.16, 5.0), (0, -18, 0), (0.94, 0.94, 0.94)),
-    ("gs_relay_housing_a.glb", "CoreRelay", (9.7, 0.14, -7.3), (0, 88, 0), (1.0, 1.0, 1.0)),
-    ("gs_pipe_bracket_a.glb", "NorthPipeBracket", (0.2, 0.05, 5.3), (0, 0, 0), (1.15, 1.15, 1.15)),
-    ("gs_pipe_bracket_a.glb", "SouthPipeBracket", (4.8, 0.05, -1.1), (0, 92, 0), (1.15, 1.15, 1.15)),
-    ("gs_dish_support_a.glb", "CoreDishSupport", (11.3, 0.12, -8.7), (0, 132, 0), (1.02, 1.02, 1.02)),
-    ("gs_dish_support_a.glb", "BreachDishSupport", (-13.4, 0.12, 4.9), (0, -46, 0), (0.92, 0.92, 0.92))
-  ]
-  for file_name, name, loc, rot, scale in kit_specs:
-    import_gltf(os.path.join(kitbash_dir, file_name), name, loc, rot, scale)
-
   export_selected(os.path.join(out_dir, "broken_halo_env.glb"))
 
 
