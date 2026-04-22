@@ -1,5 +1,9 @@
 import * as pc from 'playcanvas';
 import { getLevel, DEFAULT_LEVEL_ID } from '../data/levels.js';
+import { createBattlefieldAssembly } from './BattlefieldAssembly.js';
+import { createBrokenHaloVisualPass } from './BrokenHaloAssembler.js';
+import { createBrokenHaloPolishPass } from './BrokenHaloPolishPass.js';
+import { createBrokenHaloReadabilityPass } from './BrokenHaloReadabilityPass.js';
 
 /**
  * SceneFactory
@@ -11,6 +15,7 @@ export class SceneFactory {
     this.currentLevel = level;
     this.assetLoader = assetLoader;
     this.sceneRoot = null;
+    this.sceneGroups = null;
     this.ground = null;
     this.camera = null;
     this.baseMarker = null;
@@ -18,6 +23,7 @@ export class SceneFactory {
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
     this._pulsingLights = [];
@@ -38,9 +44,11 @@ export class SceneFactory {
 
     this.sceneRoot = new pc.Entity(`Battlefield_${this.currentLevel.id}`);
     this.app.root.addChild(this.sceneRoot);
+    this.sceneGroups = createBattlefieldAssembly(this.sceneRoot);
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
     this._pulsingLights = [];
@@ -59,9 +67,13 @@ export class SceneFactory {
     this.createSkybox();
     this.createBaseMarker();
     this.createSpawnMarker();
-    this.createPathVisualization();
     this.createBeacons();
+    this.createZoneAnchors();
+    createBrokenHaloVisualPass(this);
+    this.createPathVisualization();
     this.createBuildSlotMarkers();
+    createBrokenHaloPolishPass(this);
+    createBrokenHaloReadabilityPass(this);
   }
 
   destroyBattlefield() {
@@ -70,6 +82,7 @@ export class SceneFactory {
       this.sceneRoot = null;
     }
 
+    this.sceneGroups = null;
     this.ground = null;
     this.camera = null;
     this.baseMarker = null;
@@ -77,6 +90,7 @@ export class SceneFactory {
     this.pathMarkers = [];
     this.buildSlotMarkers = [];
     this.buildSlotStates = {};
+    this.zoneAnchors = {};
     this._animatedRotators = [];
     this._animatedPulses = [];
     this._pulsingLights = [];
@@ -127,7 +141,7 @@ export class SceneFactory {
     });
     sun.setLocalPosition(-8, 20, 10);
     sun.setLocalEulerAngles(52, 34, 0);
-    this.sceneRoot.addChild(sun);
+    this.sceneGroups.lighting.addChild(sun);
 
     const spawnFill = this._createPointLight(
       'SpawnFill',
@@ -136,7 +150,8 @@ export class SceneFactory {
       this.currentLevel.spawn.z,
       theme.spawnColor,
       2.0,
-      22
+      22,
+      this.sceneGroups.lighting
     );
 
     const coreFill = this._createPointLight(
@@ -146,7 +161,8 @@ export class SceneFactory {
       this.currentLevel.base.z,
       theme.coreColor,
       2.4,
-      22
+      22,
+      this.sceneGroups.lighting
     );
 
     const trenchFill = this._createPointLight(
@@ -156,7 +172,8 @@ export class SceneFactory {
       1.8,
       theme.trenchGlow,
       1.5,
-      26
+      26,
+      this.sceneGroups.lighting
     );
 
     this._pulsingLights.push(
@@ -183,7 +200,8 @@ export class SceneFactory {
       this._createMaterial(theme.groundColor, {
         specular: { r: 0.08, g: 0.1, b: 0.14 },
         shininess: 10
-      })
+      }),
+      this.sceneGroups.structural
     );
     this.ground = hull;
 
@@ -194,16 +212,24 @@ export class SceneFactory {
       this._createMaterial(theme.trenchGlow, {
         emissive: theme.trenchGlow,
         opacity: 0.12
-      })
+      }),
+      this.sceneGroups.fx
     );
     underglow.setLocalEulerAngles(90, 0, 0);
   }
 
   createEnvironmentAsset() {
+    const environmentAsset = this.currentLevel.sceneAssembly?.environmentAsset;
+    if (!environmentAsset) {
+      return false;
+    }
+
+    const environmentPosition = environmentAsset.position || { x: 0, y: 0, z: 0 };
     const environment = this._instantiateAsset(
-      'broken_halo_env',
-      'BrokenHaloEnvironment',
-      [0, 0, 0]
+      environmentAsset.name,
+      environmentAsset.entityName,
+      [environmentPosition.x, environmentPosition.y, environmentPosition.z],
+      this.sceneGroups.structural
     );
 
     if (!environment) {
@@ -214,7 +240,8 @@ export class SceneFactory {
       'EnvironmentShadowPlate',
       { x: 0, y: -0.65, z: 0 },
       { x: 32, y: 0.08, z: 26 },
-      this._createMaterial({ r: 0.02, g: 0.03, b: 0.05 }, { opacity: 0.38 })
+      this._createMaterial({ r: 0.02, g: 0.03, b: 0.05 }, { opacity: 0.38 }),
+      this.sceneGroups.fx
     );
     silhouette.setLocalEulerAngles(0, 0, 0);
 
@@ -235,8 +262,14 @@ export class SceneFactory {
     });
 
     this.currentLevel.setPieces.floorPlates.forEach((plate, index) => {
-      this._createBox(plate.name, plate.position, plate.scale, index === 1 ? accentMaterial : floorMaterial);
-      this._createPlateTrim(plate, theme);
+      this._createBox(
+        plate.name,
+        plate.position,
+        plate.scale,
+        index === 1 ? accentMaterial : floorMaterial,
+        this.sceneGroups.structural
+      );
+      this._createPlateTrim(plate, theme, this.sceneGroups.structural);
     });
 
     const innerHalo = this._createCylinder(
@@ -247,7 +280,8 @@ export class SceneFactory {
         emissive: { r: 0.05, g: 0.11, b: 0.14 },
         specular: theme.neutralGlow,
         shininess: 50
-      })
+      }),
+      this.sceneGroups.structural
     );
     innerHalo.setLocalEulerAngles(0, 0, 0);
 
@@ -259,6 +293,7 @@ export class SceneFactory {
         emissive: { r: theme.coreColor.r * 0.45, g: theme.coreColor.g * 0.45, b: theme.coreColor.b * 0.45 },
         opacity: 0.55
       }),
+      this.sceneGroups.fx,
       { x: 90, y: 0, z: 0 }
     );
     this._animatedRotators.push({ entity: innerHaloRing, speed: 14 });
@@ -276,13 +311,20 @@ export class SceneFactory {
     });
 
     this.currentLevel.setPieces.trenchSegments.forEach((segment, index) => {
-      this._createBox(segment.name, segment.position, segment.scale, trenchMaterial);
+      this._createBox(
+        segment.name,
+        segment.position,
+        segment.scale,
+        trenchMaterial,
+        this.sceneGroups.structural
+      );
 
       const glow = this._createPlane(
         `${segment.name}_Glow`,
         { x: segment.position.x, y: -0.02, z: segment.position.z },
         { x: segment.scale.x * 0.92, y: 1, z: segment.scale.z * 0.92 },
-        glowMaterial
+        glowMaterial,
+        this.sceneGroups.fx
       );
       glow.setLocalEulerAngles(90, index % 2 === 0 ? 0 : 90, 0);
       this._animatedPulses.push({
@@ -307,12 +349,13 @@ export class SceneFactory {
     });
 
     this.currentLevel.setPieces.wallSegments.forEach((wall) => {
-      this._createBox(wall.name, wall.position, wall.scale, wallMaterial);
+      this._createBox(wall.name, wall.position, wall.scale, wallMaterial, this.sceneGroups.structural);
       this._createBox(
         `${wall.name}_Cap`,
         { x: wall.position.x, y: wall.position.y + wall.scale.y / 2 + 0.08, z: wall.position.z },
         { x: wall.scale.x * 0.92, y: 0.16, z: wall.scale.z * 0.92 },
-        capMaterial
+        capMaterial,
+        this.sceneGroups.structural
       );
     });
 
@@ -340,7 +383,8 @@ export class SceneFactory {
         `BackdropColumn_${index}`,
         { x: column.x, y: column.y, z: column.z },
         { x: 1.2, y: column.h, z: 1.2 },
-        pylonMaterial
+        pylonMaterial,
+        this.sceneGroups.propsMedium
       );
 
       const cap = this._createSphere(
@@ -349,7 +393,8 @@ export class SceneFactory {
         { x: 0.36, y: 0.36, z: 0.36 },
         this._createMaterial(index % 2 === 0 ? theme.pathEdgeColor : theme.coreColor, {
           emissive: index % 2 === 0 ? theme.pathEdgeColor : theme.coreColor
-        })
+        }),
+        this.sceneGroups.propsSmall
       );
 
       this._animatedPulses.push({
@@ -379,7 +424,13 @@ export class SceneFactory {
     ];
 
     rails.forEach((rail, index) => {
-      const entity = this._createBox(`BridgeRail_${index}`, rail, rail.scale, railMaterial);
+      const entity = this._createBox(
+        `BridgeRail_${index}`,
+        rail,
+        rail.scale,
+        railMaterial,
+        this.sceneGroups.propsSmall
+      );
       this._animatedPulses.push({
         entity,
         baseScale: entity.getLocalScale().clone(),
@@ -394,7 +445,8 @@ export class SceneFactory {
         `BridgeBrace_${index}`,
         { x, y: 0.8, z: 1.45 },
         { x: 0.22, y: 1.15, z: 4.9 },
-        braceMaterial
+        braceMaterial,
+        this.sceneGroups.propsMedium
       );
     });
   }
@@ -423,7 +475,8 @@ export class SceneFactory {
     const reactorAsset = this._instantiateAsset(
       'broken_halo_reactor',
       'CoreReactorAsset',
-      [base.x, 0.18, base.z]
+      [base.x, 0.18, base.z],
+      this.sceneGroups.landmarks
     );
     if (reactorAsset) {
       this.baseMarker = reactorAsset;
@@ -436,6 +489,7 @@ export class SceneFactory {
           emissive: { r: theme.coreColor.r * 0.5, g: theme.coreColor.g * 0.5, b: theme.coreColor.b * 0.5 },
           opacity: 0.5
         }),
+        this.sceneGroups.landmarks,
         { x: 90, y: 0, z: 0 }
       );
 
@@ -447,6 +501,7 @@ export class SceneFactory {
           emissive: { r: 0.3, g: 0.26, b: 0.18 },
           opacity: 0.34
         }),
+        this.sceneGroups.landmarks,
         { x: 90, y: 0, z: 0 }
       );
 
@@ -465,7 +520,8 @@ export class SceneFactory {
       this._createMaterial(theme.metalAccent, {
         specular: theme.neutralGlow,
         shininess: 60
-      })
+      }),
+      this.sceneGroups.landmarks
     );
     this.baseMarker = platform;
 
@@ -477,7 +533,8 @@ export class SceneFactory {
         emissive: theme.coreColor,
         specular: theme.neutralGlow,
         shininess: 120
-      })
+      }),
+      this.sceneGroups.landmarks
     );
     this._animatedPulses.push({
       entity: core,
@@ -495,6 +552,7 @@ export class SceneFactory {
         emissive: { r: theme.coreColor.r * 0.55, g: theme.coreColor.g * 0.55, b: theme.coreColor.b * 0.55 },
         opacity: 0.55
       }),
+      this.sceneGroups.landmarks,
       { x: 90, y: 0, z: 0 }
     );
 
@@ -506,6 +564,7 @@ export class SceneFactory {
         emissive: { r: 0.34, g: 0.3, b: 0.18 },
         opacity: 0.4
       }),
+      this.sceneGroups.landmarks,
       { x: 90, y: 0, z: 0 }
     );
 
@@ -527,7 +586,8 @@ export class SceneFactory {
         this._createMaterial(theme.metalAccent, {
           specular: theme.neutralGlow,
           shininess: 70
-        })
+        }),
+        this.sceneGroups.landmarks
       );
 
       const pylonTip = this._createSphere(
@@ -538,7 +598,8 @@ export class SceneFactory {
           z: base.z + Math.sin(radians) * 2.4
         },
         { x: 0.24, y: 0.24, z: 0.24 },
-        this._createMaterial(theme.coreColor, { emissive: theme.coreColor })
+        this._createMaterial(theme.coreColor, { emissive: theme.coreColor }),
+        this.sceneGroups.landmarks
       );
 
       this._animatedPulses.push({
@@ -560,7 +621,8 @@ export class SceneFactory {
     const portalAsset = this._instantiateAsset(
       'broken_halo_portal',
       'BreachPortalAsset',
-      [spawn.x, 0, spawn.z]
+      [spawn.x, 0, spawn.z],
+      this.sceneGroups.landmarks
     );
     if (portalAsset) {
       this.spawnMarker = portalAsset;
@@ -573,6 +635,7 @@ export class SceneFactory {
           emissive: { r: theme.spawnColor.r * 0.6, g: theme.spawnColor.g * 0.24, b: theme.spawnColor.b * 0.12 },
           opacity: 0.5
         }),
+        this.sceneGroups.landmarks,
         { x: 0, y: 90, z: 0 }
       );
       this._animatedRotators.push({ entity: portalAura, speed: 28, axis: 'z' });
@@ -586,7 +649,8 @@ export class SceneFactory {
       this._createMaterial({ r: 0.16, g: 0.12, b: 0.14 }, {
         emissive: { r: 0.14, g: 0.05, b: 0.04 },
         shininess: 55
-      })
+      }),
+      this.sceneGroups.landmarks
     );
     this.spawnMarker = pedestal;
 
@@ -598,6 +662,7 @@ export class SceneFactory {
         emissive: { r: theme.spawnColor.r * 0.65, g: theme.spawnColor.g * 0.38, b: theme.spawnColor.b * 0.22 },
         opacity: 0.65
       }),
+      this.sceneGroups.landmarks,
       { x: 0, y: 90, z: 0 }
     );
 
@@ -608,7 +673,8 @@ export class SceneFactory {
       this._createMaterial(theme.spawnColor, {
         emissive: theme.spawnColor,
         opacity: 0.78
-      })
+      }),
+      this.sceneGroups.landmarks
     );
 
     this._animatedRotators.push({ entity: portal, speed: 34, axis: 'z' });
@@ -652,6 +718,7 @@ export class SceneFactory {
         },
         { x: pathStyle.width, y: 0.18, z: length + pathStyle.width * 0.15 },
         pathMaterial,
+        this.sceneGroups.pathMarkers,
         { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
       this.pathMarkers.push(segment);
@@ -668,6 +735,7 @@ export class SceneFactory {
         },
         edgeScale,
         edgeMaterial,
+        this.sceneGroups.pathMarkers,
         { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
 
@@ -680,6 +748,7 @@ export class SceneFactory {
         },
         edgeScale,
         edgeMaterial,
+        this.sceneGroups.pathMarkers,
         { x: 0, y: -angle * (180 / Math.PI), z: 0 }
       );
 
@@ -696,7 +765,8 @@ export class SceneFactory {
         this._createMaterial(theme.neutralGlow, {
           emissive: { r: 0.28, g: 0.24, b: 0.16 },
           shininess: 80
-        })
+        }),
+        this.sceneGroups.pathMarkers
       );
       this.pathMarkers.push(marker);
     });
@@ -715,7 +785,8 @@ export class SceneFactory {
       const column = this._instantiateAsset(
         'broken_halo_beacon',
         beacon.name,
-        [beacon.x, beacon.y - 0.9, beacon.z]
+        [beacon.x, beacon.y - 0.9, beacon.z],
+        this.sceneGroups.landmarks
       ) || this._createBox(
         beacon.name,
         { x: beacon.x, y: beacon.y, z: beacon.z },
@@ -723,14 +794,16 @@ export class SceneFactory {
         this._createMaterial(theme.metalAccent, {
           specular: theme.neutralGlow,
           shininess: 55
-        })
+        }),
+        this.sceneGroups.landmarks
       );
 
       const tip = this._createSphere(
         `${beacon.name}_Tip`,
         { x: beacon.x, y: beacon.y + 1.25, z: beacon.z },
         { x: 0.16, y: 0.16, z: 0.16 },
-        this._createMaterial(color, { emissive: color })
+        this._createMaterial(color, { emissive: color }),
+        this.sceneGroups.landmarks
       );
 
       const aura = this._createTorus(
@@ -741,6 +814,7 @@ export class SceneFactory {
           emissive: { r: color.r * 0.38, g: color.g * 0.38, b: color.b * 0.38 },
           opacity: 0.45
         }),
+        this.sceneGroups.landmarks,
         { x: 90, y: 0, z: 0 }
       );
 
@@ -767,6 +841,7 @@ export class SceneFactory {
         'broken_halo_pad',
         `BuildSlot_${slot.id}`,
         [slot.x, slotY, slot.z],
+        this.sceneGroups.buildSlots,
         slot.role === 'perch' ? [1.1, 1.1, 1.1] : [1, 1, 1]
       ) || this._createCylinder(
         `BuildSlot_${slot.id}`,
@@ -775,7 +850,8 @@ export class SceneFactory {
         this._createMaterial(theme.metalAccent, {
           specular: theme.neutralGlow,
           shininess: 55
-        })
+        }),
+        this.sceneGroups.buildSlots
       );
 
       marker.slotId = slot.id;
@@ -791,6 +867,7 @@ export class SceneFactory {
           emissive: { r: markerColor.r * 0.4, g: markerColor.g * 0.4, b: markerColor.b * 0.4 },
           opacity: 0.56
         }),
+        this.sceneGroups.buildSlots,
         { x: 90, y: 0, z: 0 }
       );
 
@@ -798,7 +875,8 @@ export class SceneFactory {
         `BuildSlotCore_${slot.id}`,
         { x: slot.x, y: (slot.y ?? this.currentLevel.battlefield.padHeight) + 0.25, z: slot.z },
         { x: 0.16, y: 0.16, z: 0.16 },
-        this._createMaterial(markerColor, { emissive: markerColor })
+        this._createMaterial(markerColor, { emissive: markerColor }),
+        this.sceneGroups.buildSlots
       );
 
       this._animatedRotators.push({ entity: ring, speed: index % 2 === 0 ? 18 : -18 });
@@ -818,9 +896,30 @@ export class SceneFactory {
           this._createMaterial(theme.metalAccent, {
             specular: theme.neutralGlow,
             shininess: 45
-          })
+          }),
+          this.sceneGroups.buildSlots
         );
       }
+    });
+  }
+
+  createZoneAnchors() {
+    const zoneAnchors = this.currentLevel.sceneAssembly?.zoneAnchors;
+    if (!Array.isArray(zoneAnchors)) {
+      return;
+    }
+
+    zoneAnchors.forEach(({ name, position }) => {
+      if (!name || !position) {
+        return;
+      }
+
+      const anchor = new pc.Entity(name);
+      anchor.setLocalPosition(position.x, position.y, position.z);
+      anchor.setLocalEulerAngles(0, 0, 0);
+      anchor.setLocalScale(1, 1, 1);
+      this.sceneGroups.landmarks.addChild(anchor);
+      this.zoneAnchors[name] = anchor;
     });
   }
 
@@ -866,7 +965,14 @@ export class SceneFactory {
     ];
 
     fragments.forEach((fragment, index) => {
-      this._createBox(`BreachDebris_${index}`, fragment, fragment.scale, debrisMaterial, fragment.rot);
+      this._createBox(
+        `BreachDebris_${index}`,
+        fragment,
+        fragment.scale,
+        debrisMaterial,
+        this.sceneGroups.propsMedium,
+        fragment.rot
+      );
     });
 
     const fireGlow = this._createPlane(
@@ -876,7 +982,8 @@ export class SceneFactory {
       this._createMaterial(theme.spawnColor, {
         emissive: theme.spawnColor,
         opacity: 0.18
-      })
+      }),
+      this.sceneGroups.fx
     );
     fireGlow.setLocalEulerAngles(90, 0, 0);
     this._animatedPulses.push({
@@ -888,7 +995,7 @@ export class SceneFactory {
     });
   }
 
-  _createPlateTrim(plate, theme) {
+  _createPlateTrim(plate, theme, parentEntity) {
     this._createBox(
       `${plate.name}_Trim`,
       { x: plate.position.x, y: plate.position.y + plate.scale.y / 2 + 0.08, z: plate.position.z },
@@ -896,7 +1003,8 @@ export class SceneFactory {
       this._createMaterial(theme.metalAccent, {
         emissive: { r: 0.04, g: 0.06, b: 0.08 },
         shininess: 40
-      })
+      }),
+      parentEntity
     );
   }
 
@@ -914,7 +1022,7 @@ export class SceneFactory {
     }
   }
 
-  _createPointLight(name, x, y, z, color, intensity, range) {
+  _createPointLight(name, x, y, z, color, intensity, range, parentEntity) {
     const entity = new pc.Entity(name);
     entity.addComponent('light', {
       type: 'point',
@@ -923,11 +1031,11 @@ export class SceneFactory {
       range
     });
     entity.setLocalPosition(x, y, z);
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
   }
 
-  _instantiateAsset(assetName, entityName, position, scale = [1, 1, 1], rotation = [0, 0, 0]) {
+  _instantiateAsset(assetName, entityName, position, parentEntity, scale = [1, 1, 1], rotation = [0, 0, 0]) {
     if (!this.assetLoader?.isLoaded?.()) {
       return null;
     }
@@ -944,11 +1052,11 @@ export class SceneFactory {
     renderEntity.setLocalPosition(0, 0, 0);
     renderEntity.setLocalScale(1, 1, 1);
     wrapper.addChild(renderEntity);
-    this.sceneRoot.addChild(wrapper);
+    this._requireParent(parentEntity, entityName).addChild(wrapper);
     return wrapper;
   }
 
-  _createBox(name, position, scale, material, rotation = null) {
+  _createBox(name, position, scale, material, parentEntity, rotation = null) {
     const entity = new pc.Entity(name);
     entity.addComponent('render', { type: 'box' });
     entity.setLocalPosition(position.x, position.y, position.z);
@@ -957,11 +1065,11 @@ export class SceneFactory {
       entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
     }
     entity.render.material = material;
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
   }
 
-  _createPlane(name, position, scale, material, rotation = null) {
+  _createPlane(name, position, scale, material, parentEntity, rotation = null) {
     const entity = new pc.Entity(name);
     entity.addComponent('render', { type: 'plane' });
     entity.setLocalPosition(position.x, position.y, position.z);
@@ -970,31 +1078,31 @@ export class SceneFactory {
       entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
     }
     entity.render.material = material;
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
   }
 
-  _createCylinder(name, position, scale, material) {
+  _createCylinder(name, position, scale, material, parentEntity) {
     const entity = new pc.Entity(name);
     entity.addComponent('render', { type: 'cylinder' });
     entity.setLocalPosition(position.x, position.y, position.z);
     entity.setLocalScale(scale.x, scale.y, scale.z);
     entity.render.material = material;
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
   }
 
-  _createSphere(name, position, scale, material) {
+  _createSphere(name, position, scale, material, parentEntity) {
     const entity = new pc.Entity(name);
     entity.addComponent('render', { type: 'sphere' });
     entity.setLocalPosition(position.x, position.y, position.z);
     entity.setLocalScale(scale.x, scale.y, scale.z);
     entity.render.material = material;
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
   }
 
-  _createTorus(name, position, scale, material, rotation = null) {
+  _createTorus(name, position, scale, material, parentEntity, rotation = null) {
     const entity = new pc.Entity(name);
     entity.addComponent('render', { type: 'torus' });
     entity.setLocalPosition(position.x, position.y, position.z);
@@ -1003,8 +1111,16 @@ export class SceneFactory {
       entity.setLocalEulerAngles(rotation.x || 0, rotation.y || 0, rotation.z || 0);
     }
     entity.render.material = material;
-    this.sceneRoot.addChild(entity);
+    this._requireParent(parentEntity, name).addChild(entity);
     return entity;
+  }
+
+  _requireParent(parentEntity, entityName) {
+    if (!parentEntity) {
+      throw new Error(`[SceneFactory] Parent entity is required for ${entityName}`);
+    }
+
+    return parentEntity;
   }
 
   _createMaterial(diffuseColor, options = {}) {
